@@ -2,7 +2,7 @@
 import os
 import sys
 
-from secrets import DATABASES, SECRET_KEY
+from secrets_stub import DATABASES, SECRET_KEY
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
