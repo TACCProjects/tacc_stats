@@ -108,7 +108,7 @@ def create_subheatmap(intensity, job, host, n, num_hosts):
     end = job.end_time
     start = job.start_time
 
-    x = NP.linspace(0, (end - start) / 3600., length * 1)
+    x = NP.linspace(0, (end - start) / 3600.0, length * 1)
 
     intensity = NP.array([intensity]*2, dtype=NP.float64)
 
