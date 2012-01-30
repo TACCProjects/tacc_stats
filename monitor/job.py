@@ -14,12 +14,6 @@ SF_COMMENT_CHAR = '#'
 SF_PROPERTY_CHAR = '$'
 SF_MARK_CHAR = '%'
 
-EVENTS = [
-['DRAMaccesses', 'UserCycles', 'DCacheSysFills', 'SSEFLOPS'],
-['UserCycles', 'HTlink0Use', 'DCacheSysFills', 'SSEFLOPS'],
-['UserCycles', 'DCacheSysFills', 'HTlink1Use', 'SSEFLOPS'],
-['UserCycles', 'DCacheSysFills', 'SSEFLOPS', 'HTlink2Use']]
-
 # stats/HOST/TIMESTAMP: raw stats files (in).
 in_stats_dir = os.path.join(TS_IN_DIR, 'stats')
 
@@ -278,7 +272,18 @@ class Host(object):
         #     return False
         return self.raw_stats
 
-    def interpret_cpu(self):
+    def interpret_amd64_pmc_cpu(self):
+        '''
+        This function returns a dictionary containing:
+        flops, user cycles, and dcache fills for all 16 cores in the AMD CPU
+        DRAM access and link use by the three HTlinks for all 4 sockets
+        '''
+        EVENTS = [
+        ['DRAMaccesses', 'UserCycles', 'DCacheSysFills', 'SSEFLOPS'],
+        ['UserCycles', 'HTlink0Use', 'DCacheSysFills', 'SSEFLOPS'],
+        ['UserCycles', 'DCacheSysFills', 'HTlink1Use', 'SSEFLOPS'],
+        ['UserCycles', 'DCacheSysFills', 'SSEFLOPS', 'HTlink2Use']]
+
 	cpus = self.stats['amd64_pmc']
 
         CNTRS = dict()
@@ -297,6 +302,8 @@ class Host(object):
 
              CNTRS[core_str] = core_cntrs
              
+             #soc_index returns the index in the EVENTS array of the element
+             # which has not been accessed
              soc_index = 4*3 + 6 - SSEFLOPS_CNTR - UserCycles_CNTR - DCacheSysFills_CNTR
              soc_field = EVENTS[core % 4][soc_index]
              soc_str = "soc" + repr(core / 4)
