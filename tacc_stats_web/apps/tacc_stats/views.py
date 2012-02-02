@@ -9,10 +9,12 @@ matplotlib.use('Agg')
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from pylab import figure, axes, pie, title, hist, xlabel, ylabel
 from matplotlib import pyplot as PLT
+from matplotlib.colors import LogNorm
 
 import shelve
 import job
 import numpy as NP
+import math
 
 from tacc_stats.models import Job
 
@@ -103,6 +105,7 @@ def _flops_intensity(job, host):
     job -- the job being accessed
     host -- the host being charted
     """
+    RANGER_MAX_FLOPS = 88326000000000
     flops_used = [0] * job.times.size
 
     cpu_data = job.hosts[host].interpret_amd64_pmc_cpu()
@@ -111,8 +114,9 @@ def _flops_intensity(job, host):
         if (key[:4] == 'core'):
             flops_used = flops_used + val['SSEFLOPS']
 
-    difference = NP.diff(flops_used)
-    intensity = NP.append(0, difference) / difference.max()
+    difference = NP.log(NP.diff(flops_used)) / math.log(RANGER_MAX_FLOPS)
+    intensity = NP.append(0, difference)
+    print intensity
     return intensity
 
 def create_subheatmap(intensity, job, host, n, num_hosts):
@@ -135,7 +139,7 @@ def create_subheatmap(intensity, job, host, n, num_hosts):
     intensity = NP.array([intensity]*2, dtype=NP.float64)
 
     PLT.subplot(num_hosts, 1, n)
-    PLT.pcolor(x, NP.array([0, 1]), intensity, cmap=matplotlib.cm.Reds, vmin = 0, vmax = 1)
+    PLT.pcolor(x, NP.array([0, 1]), intensity, cmap=matplotlib.cm.Reds, vmin = 0, vmax = 1, edgecolors='none')
 
     if (n != num_hosts):
         PLT.xticks([])
@@ -188,56 +192,6 @@ def create_heatmap(request, job_id, trait):
         elif (trait == 'flops'):
             intensity = _flops_intensity(job, host)
 
-        create_subheatmap(intensity, job, host, n, num_hosts)
-        n += 1
-
-    f = PLT.gcf()
-
-    f.set_size_inches(10,num_hosts*.3+1.5)
-    return figure_to_response(f)
-
-def job_mem_heatmap(request, job_id):
-    """
-    Creates a heatmap with intensity correlated with the amount of memory used by the job
-    """
-    job_shelf = shelve.open(SHELVE_DIR)
-
-    job = job_shelf[job_id]
-
-    hosts = job.hosts.keys()
-    
-    n = 1
-    num_hosts = len(job.hosts)
-    PLT.subplots_adjust(hspace = 0)
-    PLT.suptitle('Memory Used By Host', fontsize = 12)
-
-    for host in hosts:
-        intensity = _memory_intensity(job, host)
-        create_subheatmap(intensity, job, host, n, num_hosts)
-        n += 1
-	
-    f = PLT.gcf()
-
-    f.set_size_inches(10,num_hosts*.3+1.5)
-    return figure_to_response(f)
-
-def job_files_open_heatmap(request, job_id):
-    """
-    Creates a heatmap with intensity correlated with the amount of files a job opens
-    """
-    job_shelf = shelve.open(SHELVE_DIR)
-
-    job = job_shelf[job_id]
-
-    hosts = job.hosts.keys()
-   
-    n = 1
-    num_hosts = len(job.hosts)
-    PLT.subplots_adjust(hspace = 0)
-    PLT.suptitle('Files Used By Host', fontsize = 12)
-
-    for host in hosts:
-        intensity = _flops_intensity(job, host)
         create_subheatmap(intensity, job, host, n, num_hosts)
         n += 1
 
