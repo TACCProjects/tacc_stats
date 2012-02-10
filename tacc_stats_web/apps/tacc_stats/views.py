@@ -3,6 +3,9 @@ sys.path.append('/home/dmalone/other/src/tacc_stats/monitor')
 
 from django.http import HttpResponse
 from django.shortcuts import render_to_response
+from django.views.decorators.csrf import csrf_protect
+from django.shortcuts import render
+from django.views.generic import DetailView, ListView
 
 import matplotlib
 matplotlib.use('Agg')
@@ -17,6 +20,8 @@ import numpy as NP
 import math
 
 from tacc_stats.models import Job
+
+from forms import SearchForm
 
 SHELVE_DIR = '/home/dmalone/sample-jobs/jobs'
 
@@ -91,8 +96,8 @@ def _files_open_intensity(job, host):
     for filesystem in job.hosts[host].stats['llite']:
         files_opened = files_opened + job.hosts[host].stats['llite'][filesystem][: , files_opened_index]
 
-    difference = NP.diff(files_opened)
-    intensity = NP.append(0, difference) / difference.max()
+    intensity = NP.diff(files_opened)
+
     return intensity
 
 def _flops_intensity(job, host):
@@ -114,9 +119,8 @@ def _flops_intensity(job, host):
         if (key[:4] == 'core'):
             flops_used = flops_used + val['SSEFLOPS']
 
-    difference = NP.log(NP.diff(flops_used)) / math.log(RANGER_MAX_FLOPS)
-    intensity = NP.append(0, difference)
-    print intensity
+    intensity = NP.log(NP.diff(flops_used)) / math.log(RANGER_MAX_FLOPS)
+    
     return intensity
 
 def create_subheatmap(intensity, job, host, n, num_hosts):
@@ -199,3 +203,48 @@ def create_heatmap(request, job_id, trait):
 
     f.set_size_inches(10,num_hosts*.3+1.5)
     return figure_to_response(f)
+
+@csrf_protect
+def search(request):
+    """ 
+    Creates a search form that can be used to navigate through the list 
+    of jobs.
+    """
+    if request.method == 'POST':
+        print request.POST
+
+        form = SearchForm(request.POST)
+        query = request.POST
+
+        job_list = Job.objects.all()
+
+        if form["acct_id"].value():
+            job_list = job_list.filter(acct_id = form["acct_id"].value())
+        if form["owner"].value():
+            job_list = job_list.filter(owner = form["owner"].value())
+        if form["begin"].value():
+            job_list = job_list.filter(begin__gte = form["begin"].value())
+        if form["end"].value():
+            job_list = job_list.filter(end__lte = form["end"].value())
+
+    else:
+        form = SearchForm()
+        job_list = Job.objects.order_by('-begin')[:200]
+
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list })
+
+class JobListView(ListView):
+
+    def get_queryset(self):
+        if self.request.method == 'POST':
+            query = self.request.POST
+            return Job.objects.order_by('-begin')[:200]
+            #return Job.objects.filter(
+            #        owner = query.__getitem__("owner"),
+            #        begin = query.__getitem__("begin"),
+            #        end = query.__getitem__("end"),
+            #        hosts = query.__getitem__("hosts"),
+            #        acct_id = query.__getitem__("acct_id")
+            #        )
+        else:
+            return Job.objects.order_by('-begin')[:200]
