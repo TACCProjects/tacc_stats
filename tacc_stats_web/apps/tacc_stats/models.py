@@ -30,7 +30,7 @@ class User(models.Model):
 class Job(models.Model):
     system = models.ForeignKey(System)
     acct_id = models.BigIntegerField()
-    owner = models.ForeignKey(User)
+    owner = models.ForeignKey(User, null=True)
     hosts = models.ManyToManyField(Node)
     queue = models.CharField(max_length=16, null=True)
     queue_wait_time = models.IntegerField(null=True)

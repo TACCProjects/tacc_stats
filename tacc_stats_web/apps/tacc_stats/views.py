@@ -6,6 +6,7 @@ from django.shortcuts import render_to_response
 from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
+from django.db.models import Q
 
 import matplotlib
 matplotlib.use('Agg')
@@ -19,11 +20,14 @@ import job
 import numpy as NP
 import math
 
+import time
+
 from tacc_stats.models import Job
+import job
+
+SHELVE_DIR = '/home/tacc_stats/sample-jobs/jobs'
 
 from forms import SearchForm
-
-SHELVE_DIR = '/home/dmalone/sample-jobs/jobs'
 
 def index(request):
     """ Creates a list of all currently running jobs """
@@ -80,7 +84,7 @@ def _memory_intensity(job, host):
     return intensity
 
 def _files_open_intensity(job, host):
-    """ 
+    """
     Helper function which creates an time-array of the files opened by a specific job on a specific host.
 
     The value is a percent of the maximum value in the array. The initial datapoint is set to zero to preserve the length of the list
@@ -103,9 +107,9 @@ def _files_open_intensity(job, host):
 def _flops_intensity(job, host):
     """
     Helper function which creates a time-array of flops used by a job on a host
-    
+
     The value is a percent of the maximum value of the array
-    
+
     Arguments:
     job -- the job being accessed
     host -- the host being charted
@@ -120,7 +124,7 @@ def _flops_intensity(job, host):
             flops_used = flops_used + val['SSEFLOPS']
 
     intensity = NP.log(NP.diff(flops_used)) / math.log(RANGER_MAX_FLOPS)
-    
+
     return intensity
 
 def create_subheatmap(intensity, job, host, n, num_hosts):
@@ -159,7 +163,6 @@ def create_subheatmap(intensity, job, host, n, num_hosts):
 def create_heatmap(request, job_id, trait):
     """
     Creates a heatmap with its intensity correlated with a specific datapoint
-    
     Arguments:
     job_id -- the SGE identification number of the job being charted
     trait -- the type of heatmap being created, can take values:
@@ -167,7 +170,7 @@ def create_heatmap(request, job_id, trait):
              files -- intensity is correlated to the number of files opened
              flops -- intenisty is correlated to the number of floating point
                       operations performed by the host
-    """ 
+    """
     job_shelf = shelve.open(SHELVE_DIR)
 
     job = job_shelf[job_id]
@@ -186,6 +189,7 @@ def create_heatmap(request, job_id, trait):
         PLT.suptitle('Flops Performed By Host', fontsize = 12)
 
 
+
     for host in hosts:
         intensity = [0]
 
@@ -200,6 +204,7 @@ def create_heatmap(request, job_id, trait):
         n += 1
 
     f = PLT.gcf()
+    cb = PLT.colorbar(orientation='horizontal', anchor=1.0, panchor=0.0)
 
     f.set_size_inches(10,num_hosts*.3+1.5)
     return figure_to_response(f)
@@ -226,6 +231,9 @@ def search(request):
             job_list = job_list.filter(begin__gte = form["begin"].value())
         if form["end"].value():
             job_list = job_list.filter(end__lte = form["end"].value())
+        if form["hosts"].value():
+            job_list = job_list.filter(hosts__in=form["hosts"].value())
+
 
     else:
         form = SearchForm()
