@@ -7,6 +7,8 @@ from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
 from django.db.models import Q
+from django.core.serializers import serialize
+from django.utils.simplejson import dumps, loads, JSONEncoder
 
 import matplotlib
 matplotlib.use('Agg')
@@ -22,7 +24,7 @@ import math
 
 import time
 
-from tacc_stats.models import Job
+from tacc_stats.models import Job, COLORS
 import job
 
 SHELVE_DIR = '/home/tacc_stats/sample-jobs/jobs'
@@ -239,7 +241,19 @@ def search(request):
         form = SearchForm()
         job_list = Job.objects.order_by('-begin')[:200]
 
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list })
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS})
+
+
+def render_json(request):
+    jobs = Job.objects.order_by('-begin')[:200]
+    #json_serializer = SERIALIZERS.get_serializer("json")()
+   # json_serializer.serialize(queryset, ensure_ascii=False, stream=response)
+    json_data = serialize('json', jobs, ensure_ascii=False)
+    return HttpResponse(json_data, mimetype="application/json")
+
+def get_job(request, host, id):
+    job = Job.objects.get(acct_id = id)
+    return render_to_response('tacc_stats/job_detail.html', {'job' : job})
 
 class JobListView(ListView):
 

@@ -1,18 +1,38 @@
+<head>
+<title>The Simplest Dojo DataGrid Example of All Time</title>
+<link rel="stylesheet" type="text/css"
+ href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dijit/themes/claro/claro.css" />
+ 
+<link rel="stylesheet" type="text/css"
+ href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojox/grid/resources/Grid.css" />
+ 
+<link rel="stylesheet" type="text/css"
+ href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojox/grid/resources/claroGrid.css" />
+</head>
 <form action="/tacc_stats/search/" method="POST">{% csrf_token %}
     <table>
         {{ form.as_table }}
     </table>
     <p><input type="submit" value="Submit"></p>
 <form>
-
+{% if COLORS %}
+    <table border ="1" cellpadding="5">
+        <tr><th> Color Legend <th></tr>
+        {% for key, value in COLORS.items %}
+            <tr style="{{value}}">
+                <td>{{ key }}</td>
+            </tr>
+         {% endfor %}
+    </table>
+{% endif %}
 {% if job_list %}
     <table border="1" cellpadding="5">
         <tr><th> name </th><th> owner </th><th> hosts </th>
         <th> time spent </th><th> begin </th><th> memory used </th>
         <th> work open </th><th> irq </th></tr>
     {% for job in job_list %}
-        <tr style="{{job.color}}">
-            <td><a href="/tacc_stats/job/{{ job.id }}/">{{ job.acct_id }}</a>
+        <tr style="{{job.color}}" style='height: {{ job.nr_hosts }}px'>
+            <td><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
             <td>{{ job.owner }}</td>
             <td align=right>{{ job.nr_hosts }}</td>
             <td align=right>{{ job.timespent }}</td>
@@ -26,3 +46,56 @@
 {% else %}
     <p>No jobs are available.</p>
 {% endif %}
+
+<script type="text/javascript"
+ src="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojo/dojo.xd.js"
+    djConfig="parseOnLoad:true"></script>
+ 
+<script type="text/javascript">
+    dojo.require("dojox.grid.DataGrid");
+    dojo.require("dojo.data.ItemFileReadStore");
+    dojo.require("dojox.data.JsonRestStore");
+</script>
+<script type="text/javascript">
+dojo.ready(function() {
+
+    var dataStore =
+    new dojo.data.ItemFileReadStore(
+        { url: '/tacc_stats/render/jobs', urlPreventCache: true }
+    );
+
+    console.log(dataStore);
+
+    var layoutProxies = [
+           [{
+                field: "ip",
+                name: "IP",
+                width: 'auto'
+            },
+            {
+                field: "type",
+                name: "Type",
+                width: 'auto'
+            },
+            {
+                field: "last_checked",
+                name: "Last Checked",
+                width: 10
+            },
+            {
+                field: "alive",
+                name: "Alive",
+                width: 'auto'
+            }
+
+            ]];
+
+    var request = dataStore.fetch();
+
+    console.log(request);
+
+    var grid = dijit.byId("billsGrid");
+    grid.setStore(dataStore);
+});
+</script>
+<div id="proxyGrid" dojoType="dojox.grid.DataGrid" store="dataStore" structure="layoutProxies" query="{}" rowsPerPage="40"></div>

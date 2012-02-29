@@ -8,7 +8,7 @@ class SearchForm(ModelForm):
 
     class Meta:
         model = Job
-        fields = ('owner', 'begin', 'end', 'hosts', 'acct_id')
+        fields = ('owner', 'begin', 'end', 'acct_id')
 #        widgets = {
 #            'begin': forms.DateTimeField(),
 #        }

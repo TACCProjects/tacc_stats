@@ -3,6 +3,13 @@
 from django.db import models
 import time
 
+COLORS = { 
+    'Normal' : "background-color: rgba(0%, 0%, 100%, .3);",
+    'High Files Open' : "background-color: rgba(100%, 0%, 0%, .3);",
+    'High Memory Used' : "background-color: rgba(80%, 30%, 0%, .3)",
+    'High Runtime' : "background-color: rgba(0%, 100%, 0%, .3)"
+}
+
 class System(models.Model):
     """Details about the cluster"""
     name = models.CharField(max_length=128)
@@ -241,13 +248,13 @@ class Job(models.Model):
         return len(self.hosts.all())
 
     def color(self):
-        ret_val = "background-color: rgba(0%, 0%, 100%, .3);"
+        ret_val = COLORS['Normal']
         if self.llite_open_work > 3000:
-            ret_val = "background-color: rgba(100%, 0%, 0%, .3);"
+            ret_val = COLORS['High Files Open']
         elif self.mem_MemUsed > 30*2**30:
-            ret_val = "background-color: rgba(80%, 30%, 0%, .3)"
+            ret_val = COLORS['High Memory Used']
         elif self.runtime > 3000:
-            ret_val = "background-color: rgba(0%, 100%, 0%, .3)"
+            ret_val = COLORS['High Runtime']
         return ret_val
 
     def timespent(self):
