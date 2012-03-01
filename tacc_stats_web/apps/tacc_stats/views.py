@@ -7,7 +7,6 @@ from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
 from django.db.models import Q
-from django.core.serializers import serialize
 from django.utils.simplejson import dumps, loads, JSONEncoder
 
 import matplotlib
@@ -23,6 +22,12 @@ import numpy as NP
 import math
 
 import time
+
+import demjson
+json = demjson.JSON(compactly=False)
+jsonify = json.encode
+
+from dojoserializer import serialize
 
 from tacc_stats.models import Job, COLORS
 import job
@@ -148,7 +153,7 @@ def create_subheatmap(intensity, job, host, n, num_hosts):
 
     intensity = NP.array([intensity]*2, dtype=NP.float64)
 
-    PLT.subplot(num_hosts, 1, n)
+    PLT.subplot(num_hosts+1, 1, n)
     PLT.pcolor(x, NP.array([0, 1]), intensity, cmap=matplotlib.cm.Reds, vmin = 0, vmax = 1, edgecolors='none')
 
     if (n != num_hosts):
@@ -206,7 +211,18 @@ def create_heatmap(request, job_id, trait):
         n += 1
 
     f = PLT.gcf()
-    cb = PLT.colorbar(orientation='horizontal', anchor=1.0, panchor=0.0)
+#    cb = PLT.colorbar(orientation='vertical', fraction=5.0, pad = 1.0)
+    cax = f.add_axes([0.91, 0.10, 0.03, 0.8])
+    cb = PLT.colorbar(orientation='vertical', cax=cax)
+    
+    if (trait == 'memory'):
+        cb.set_label('Percent Memory Consumed by Job')
+    elif (trait == 'files'):
+        cb.set_label('Percent Files Opened over Lifetime of Job')
+    elif (trait == 'flops'):
+        cb.set_label('log of flops consumed / log of peak flops')
+
+#    PLT.setp(cb, 'Position', [.8314, .11, .0581, .8150])
 
     f.set_size_inches(10,num_hosts*.3+1.5)
     return figure_to_response(f)
@@ -233,8 +249,8 @@ def search(request):
             job_list = job_list.filter(begin__gte = form["begin"].value())
         if form["end"].value():
             job_list = job_list.filter(end__lte = form["end"].value())
-        if form["hosts"].value():
-            job_list = job_list.filter(hosts__in=form["hosts"].value())
+     #   if form["hosts"].value():
+     #       job_list = job_list.filter(hosts__in=form["hosts"].value())
 
 
     else:
@@ -245,19 +261,43 @@ def search(request):
 
 
 def render_json(request):
-    jobs = Job.objects.order_by('-begin')[:200]
-    #json_serializer = SERIALIZERS.get_serializer("json")()
-   # json_serializer.serialize(queryset, ensure_ascii=False, stream=response)
-    json_data = serialize('json', jobs, ensure_ascii=False)
+    """ Creates a json page for a dojo data grid to query the jobs data from """
+    jobs = Job.objects.all().values()
+    print jobs
+    num_jobs = Job.objects.count()
+#    json_data = serialize(jobs)
+    json_data = jsonify({"numRows" : num_jobs, 'items': jobs})
     return HttpResponse(json_data, mimetype="application/json")
 
 def get_job(request, host, id):
+    """ Creates a detailed view of a specific job """
     job = Job.objects.get(acct_id = id)
     return render_to_response('tacc_stats/job_detail.html', {'job' : job})
 
-class JobListView(ListView):
+def data(request):
+    """ Creates a page with data as defined by GET """
+    search = request.GET
+    start = int(search.get('start'))
+    end = start + int(search.get('count'))
 
+    job_list = Job.objects.order_by('-begin')[start:end]
+  
+    num_jobs = Job.objects.count()
+
+    json_data = serialize(job_list)
+    
+    json_data = json_data.replace(u"\"numRows\": 20", u"\"numRows\": %i" % (num_jobs) )
+
+    return HttpResponse(json_data, mimetype="application/json")
+
+class JobListView(ListView):
+    """
+    Class which extends the ListView class and replaces specific searchs
+    """
     def get_queryset(self):
+        """
+        Creates a default query of the first 200 jobs
+        """
         if self.request.method == 'POST':
             query = self.request.POST
             return Job.objects.order_by('-begin')[:200]

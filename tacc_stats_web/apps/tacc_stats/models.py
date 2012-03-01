@@ -18,6 +18,7 @@ class System(models.Model):
         return self.name
 
 class Node(models.Model):
+    """Details about the specific node run on """
     name = models.CharField(max_length=128)
     system = models.ForeignKey(System)
 
@@ -25,6 +26,7 @@ class Node(models.Model):
         return "%s.%s" % (self.name, self.system.name)
 
 class User(models.Model):
+    """ The person who submitted the job to the queue """
     user_name = models.CharField(max_length=128)
     systems = models.ManyToManyField(System)
 
@@ -35,6 +37,9 @@ class User(models.Model):
         return "User(%s)" % self.user_name
 
 class Job(models.Model):
+    """
+    Details about the task submitted to the compute cluster
+    """
     system = models.ForeignKey(System)
     acct_id = models.BigIntegerField()
     owner = models.ForeignKey(User, null=True)
@@ -241,13 +246,18 @@ class Job(models.Model):
 
     @property
     def runtime(self):
+        """ Returns the total length of the job in seconds """
         return self.end - self.begin
 
     @property
     def nr_hosts(self):
+        """ Returns the total number of hosts used by the job """
         return len(self.hosts.all())
 
     def color(self):
+        """
+        Returns the color of the job row as a css style field
+        """
         ret_val = COLORS['Normal']
         if self.llite_open_work > 3000:
             ret_val = COLORS['High Files Open']
@@ -258,9 +268,11 @@ class Job(models.Model):
         return ret_val
 
     def timespent(self):
+        """ Returns the runtime of the job in a readable format """
         return time.strftime('%H:%M:%S', time.gmtime(self.runtime))
 
     def start_time(self):
+        """ Returns the start time of a the job in a readable format """
         return time.ctime(self.begin)
 
 class Monitor(models.Model):

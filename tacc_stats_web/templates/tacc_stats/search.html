@@ -1,5 +1,5 @@
 <head>
-<title>The Simplest Dojo DataGrid Example of All Time</title>
+<title>Job Search Page</title>
 <link rel="stylesheet" type="text/css"
  href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dijit/themes/claro/claro.css" />
  
@@ -25,7 +25,7 @@
          {% endfor %}
     </table>
 {% endif %}
-{% if job_list %}
+{% if butt %}
     <table border="1" cellpadding="5">
         <tr><th> name </th><th> owner </th><th> hosts </th>
         <th> time spent </th><th> begin </th><th> memory used </th>
@@ -41,6 +41,9 @@
             <td align=right>{{ job.llite_open_work }}</td>
             <td align=right>{{ job.cpu_irq }}</td>
         </tr>
+        {% for n in 1..job.nr_hosts %}
+        <tr></tr>
+        {% endfor %}
     {% endfor %}
     </ul>
 {% else %}
@@ -48,54 +51,111 @@
 {% endif %}
 
 <script type="text/javascript"
- src="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojo/dojo.xd.js"
+ src="http://ajax.googleapis.com/ajax/libs/dojo/1.6/dojo/dojo.xd.js"
     djConfig="parseOnLoad:true"></script>
  
 <script type="text/javascript">
     dojo.require("dojox.grid.DataGrid");
     dojo.require("dojo.data.ItemFileReadStore");
-    dojo.require("dojox.data.JsonRestStore");
+    dojo.require("dojo.data.ObjectStore");
+    dojo.require("dojo.store.JsonRest");
+    dojo.require("dojox.grid.EnhancedGrid");
+    dojo.require("dojox.grid.enhanced.plugins.Pagination");
+    dojo.require("dojox.grid.enhanced.plugins.NestedSorting");
+    dojo.require("dojox.data.QueryReadStore");
 </script>
+<body class="claro">
 <script type="text/javascript">
-dojo.ready(function() {
+countHosts = function(hosts) {
+    return hosts.length;
+}
 
-    var dataStore =
-    new dojo.data.ItemFileReadStore(
-        { url: '/tacc_stats/render/jobs', urlPreventCache: true }
-    );
-
-    console.log(dataStore);
-
-    var layoutProxies = [
+var layout = [
            [{
-                field: "ip",
-                name: "IP",
+                field: "acct_id",
+                name: "ACCT ID",
                 width: 'auto'
             },
             {
-                field: "type",
-                name: "Type",
+                field: "hosts",
+                name: "Number of Hosts",
+                width: 'auto',
+                get: countHosts
+            },
+            {
+                field: "owner",
+                name: "Owner",
                 width: 'auto'
             },
             {
-                field: "last_checked",
-                name: "Last Checked",
-                width: 10
+                field: "system",
+                name: "System",
+                width: 'auto'
             },
             {
-                field: "alive",
-                name: "Alive",
+                field: "mem_MemUsed",
+                name: "Memory",
+                width: 'auto'
+            },
+            {
+                field: "llite_open_work",
+                name: "Work Open",
+                width: 'auto'
+            },
+            {
+                field: "cpu_irq",
+                name: "IRQ",
                 width: 'auto'
             }
 
             ]];
 
-    var request = dataStore.fetch();
 
-    console.log(request);
+dojo.ready(function() {
 
-    var grid = dijit.byId("billsGrid");
-    grid.setStore(dataStore);
+    console.log("jsadlkdfhaksldfhpsadf");
+
+    var dataStore =
+    new dojo.data.ItemFileReadStore(
+        { url: '/tacc_stats/render/jobs', urlPreventCache: true }
+    ); 
+
+    var jsonStore =
+    new dojo.store.JsonRest({ target: '/tacc_stats/data/' });
+
+    var queryStore =
+    new dojox.data.QueryReadStore({ url: '/tacc_stats/data/' });
+
+    var grid = new dojox.grid.EnhancedGrid({
+        id: 'grid',
+        store: dataStore,
+        structure: layout,
+        rowSelector: '20px',
+    /*    plugins: {
+          nestedSorting: true,
+          pagination: {
+              pageSizes: ["20"],
+              description: true,
+              pageStepper: true,
+              gotoButton: true,
+              position: "bottom"
+          }
+        } */ 
+    }, document.createElement('div'));
+
+    /*append the new grid to the div*/
+    dojo.byId("gridDiv").appendChild(grid.domNode);
+
+    /*Call startup() to render the grid*/
+    grid.startup();
+
+
+//    var grid = dijit.byId("Grid");
+//    grid.setStore(dataStore);
+//    var grid = dijit.byId("billsGrid");
+//    grid.setStore(dataStore);
 });
 </script>
-<div id="proxyGrid" dojoType="dojox.grid.DataGrid" store="dataStore" structure="layoutProxies" query="{}" rowsPerPage="40"></div>
+<div dojoType="dojox.data.QueryReadStore" jsId="store", url="tacc_stats/data"></div>
+
+<div id="gridDiv" style="width: 100%; height: 100%"></div>
