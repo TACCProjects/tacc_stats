@@ -4,10 +4,11 @@ from django.db import models
 import time
 
 COLORS = { 
-    'Normal' : "background-color: rgba(0%, 0%, 100%, .3);",
-    'High Files Open' : "background-color: rgba(100%, 0%, 0%, .3);",
-    'High Memory Used' : "background-color: rgba(80%, 30%, 0%, .3)",
-    'High Runtime' : "background-color: rgba(0%, 100%, 0%, .3)"
+    'Normal' : "background-color: rgba(0%, 0%, 100%, .2);",
+    'High Files Open' : "background-color: rgba(100%, 0%, 0%, .2);",
+    'High Memory Used' : "background-color: rgba(80%, 30%, 0%, .2)",
+    'High Runtime' : "background-color: rgba(0%, 100%, 0%, .2)",
+    'High Idle' : "background-color: rgba(50%, 0%, 50%, .2)"
 }
 
 class System(models.Model):
@@ -253,6 +254,14 @@ class Job(models.Model):
     def nr_hosts(self):
         """ Returns the total number of hosts used by the job """
         return len(self.hosts.all())
+
+    def height(self):
+        """ Returns a value to scale the table row height by in html """
+        return len(self.hosts.all()) * 10
+
+    def get_owner(self):
+        """ Returns a formatted version of the owner field """
+        return self.owner.__str__()
 
     def color(self):
         """

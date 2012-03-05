@@ -213,14 +213,14 @@ def create_heatmap(request, job_id, trait):
     f = PLT.gcf()
 #    cb = PLT.colorbar(orientation='vertical', fraction=5.0, pad = 1.0)
     cax = f.add_axes([0.91, 0.10, 0.03, 0.8])
-    cb = PLT.colorbar(orientation='vertical', cax=cax)
+    cb = PLT.colorbar(orientation='vertical', cax=cax, ticks=[0, 1])
     
     if (trait == 'memory'):
-        cb.set_label('Percent Memory Consumed by Job')
+        cb.set_label('% Memory')
     elif (trait == 'files'):
-        cb.set_label('Percent Files Opened over Lifetime of Job')
+        cb.set_label('% Files')
     elif (trait == 'flops'):
-        cb.set_label('log of flops consumed / log of peak flops')
+        cb.set_label(' log % of Peak Flops')
 
 #    PLT.setp(cb, 'Position', [.8314, .11, .0581, .8150])
 
@@ -233,6 +233,8 @@ def search(request):
     Creates a search form that can be used to navigate through the list 
     of jobs.
     """
+    PAGE_LENGTH = 20
+
     if request.method == 'POST':
         print request.POST
 
@@ -255,9 +257,47 @@ def search(request):
 
     else:
         form = SearchForm()
-        job_list = Job.objects.order_by('-begin')[:200]
+        job_list = Job.objects.order_by('-begin')
+        
+    num_jobs = job_list.count()
 
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS})
+    start = 0
+    page = 0
+    end = PAGE_LENGTH
+
+    if request.GET.get('p'):
+        page = int(request.GET.get('p'))
+        start = int(request.GET.get('p')) * PAGE_LENGTH
+        end = start + PAGE_LENGTH
+
+    job_list = job_list[start : end]
+
+    num_pages = int(math.ceil(num_jobs / PAGE_LENGTH))
+
+    pages = []
+
+    if num_pages >= 0 and num_pages <= 6:
+        pages = range(num_pages)
+    else:
+        if page <= 2:
+            pages = range(3 + page)
+            pages.append('...')
+            pages += range(num_pages - 3, num_pages)
+        elif page >= (num_pages - 3):
+            pages = range(3)
+            pages.append('...')
+            pages += range(page - 2, num_pages)
+        else:
+            if num_pages <= 9:
+                pages = range(num_pages)
+            else:
+                pages = range(3)
+                pages.append('...')
+                pages += range(page - 1, page + 2)
+                pages.append('...')
+                pages += range(num_pages - 3, num_pages)
+
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page})
 
 
 def render_json(request):

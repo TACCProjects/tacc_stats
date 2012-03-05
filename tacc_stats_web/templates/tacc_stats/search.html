@@ -1,20 +1,17 @@
 <head>
-<title>Job Search Page</title>
-<link rel="stylesheet" type="text/css"
- href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dijit/themes/claro/claro.css" />
- 
-<link rel="stylesheet" type="text/css"
- href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojox/grid/resources/Grid.css" />
- 
-<link rel="stylesheet" type="text/css"
- href="http://ajax.googleapis.com/ajax/libs/dojo/1.5/dojox/grid/resources/claroGrid.css" />
+<script src="{{ STATIC_URL }}sorttable.js"></script>
+<title>Job Search Page</title> 
 </head>
+<div style="width:100%;height:30%">
+<div style="float:left;">
 <form action="/tacc_stats/search/" method="POST">{% csrf_token %}
     <table>
         {{ form.as_table }}
     </table>
     <p><input type="submit" value="Submit"></p>
 <form>
+</div>
+<div style="float:right;">
 {% if COLORS %}
     <table border ="1" cellpadding="5">
         <tr><th> Color Legend <th></tr>
@@ -25,15 +22,19 @@
          {% endfor %}
     </table>
 {% endif %}
-{% if butt %}
-    <table border="1" cellpadding="5">
-        <tr><th> name </th><th> owner </th><th> hosts </th>
+</div>
+</div>
+<div>
+<div style="height:65%">
+{% if job_list %}
+    <table border="1" cellpadding="5" class="sortable">
+        <tr><th> ID </th><th> owner </th><th> hosts </th>
         <th> time spent </th><th> begin </th><th> memory used </th>
         <th> work open </th><th> irq </th></tr>
     {% for job in job_list %}
-        <tr style="{{job.color}}" style='height: {{ job.nr_hosts }}px'>
-            <td><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
-            <td>{{ job.owner }}</td>
+        <tr style="{{job.color}}">
+            <td height="{{ job.height }}"><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
+            <td>{{ job.get_owner }}</td>
             <td align=right>{{ job.nr_hosts }}</td>
             <td align=right>{{ job.timespent }}</td>
             <td align=right>{{ job.start_time }}</td>
@@ -41,121 +42,27 @@
             <td align=right>{{ job.llite_open_work }}</td>
             <td align=right>{{ job.cpu_irq }}</td>
         </tr>
-        {% for n in 1..job.nr_hosts %}
-        <tr></tr>
-        {% endfor %}
     {% endfor %}
     </ul>
 {% else %}
     <p>No jobs are available.</p>
 {% endif %}
-
-<script type="text/javascript"
- src="http://ajax.googleapis.com/ajax/libs/dojo/1.6/dojo/dojo.xd.js"
-    djConfig="parseOnLoad:true"></script>
- 
-<script type="text/javascript">
-    dojo.require("dojox.grid.DataGrid");
-    dojo.require("dojo.data.ItemFileReadStore");
-    dojo.require("dojo.data.ObjectStore");
-    dojo.require("dojo.store.JsonRest");
-    dojo.require("dojox.grid.EnhancedGrid");
-    dojo.require("dojox.grid.enhanced.plugins.Pagination");
-    dojo.require("dojox.grid.enhanced.plugins.NestedSorting");
-    dojo.require("dojox.data.QueryReadStore");
-</script>
-<body class="claro">
-<script type="text/javascript">
-countHosts = function(hosts) {
-    return hosts.length;
-}
-
-var layout = [
-           [{
-                field: "acct_id",
-                name: "ACCT ID",
-                width: 'auto'
-            },
-            {
-                field: "hosts",
-                name: "Number of Hosts",
-                width: 'auto',
-                get: countHosts
-            },
-            {
-                field: "owner",
-                name: "Owner",
-                width: 'auto'
-            },
-            {
-                field: "system",
-                name: "System",
-                width: 'auto'
-            },
-            {
-                field: "mem_MemUsed",
-                name: "Memory",
-                width: 'auto'
-            },
-            {
-                field: "llite_open_work",
-                name: "Work Open",
-                width: 'auto'
-            },
-            {
-                field: "cpu_irq",
-                name: "IRQ",
-                width: 'auto'
-            }
-
-            ]];
-
-
-dojo.ready(function() {
-
-    console.log("jsadlkdfhaksldfhpsadf");
-
-    var dataStore =
-    new dojo.data.ItemFileReadStore(
-        { url: '/tacc_stats/render/jobs', urlPreventCache: true }
-    ); 
-
-    var jsonStore =
-    new dojo.store.JsonRest({ target: '/tacc_stats/data/' });
-
-    var queryStore =
-    new dojox.data.QueryReadStore({ url: '/tacc_stats/data/' });
-
-    var grid = new dojox.grid.EnhancedGrid({
-        id: 'grid',
-        store: dataStore,
-        structure: layout,
-        rowSelector: '20px',
-    /*    plugins: {
-          nestedSorting: true,
-          pagination: {
-              pageSizes: ["20"],
-              description: true,
-              pageStepper: true,
-              gotoButton: true,
-              position: "bottom"
-          }
-        } */ 
-    }, document.createElement('div'));
-
-    /*append the new grid to the div*/
-    dojo.byId("gridDiv").appendChild(grid.domNode);
-
-    /*Call startup() to render the grid*/
-    grid.startup();
-
-
-//    var grid = dijit.byId("Grid");
-//    grid.setStore(dataStore);
-//    var grid = dijit.byId("billsGrid");
-//    grid.setStore(dataStore);
-});
-</script>
-<div dojoType="dojox.data.QueryReadStore" jsId="store", url="tacc_stats/data"></div>
-
-<div id="gridDiv" style="width: 100%; height: 100%"></div>
+</div>
+<div style="height:5%;clear:both;">
+{% if pages %}
+    [
+    {% for i in pages %}
+         {% if i == page %}
+             <a href="/tacc_stats/search?p={{ i }}"><b>{{ i }}</b></a>
+         {% else %}
+             {% if i == '...' %}
+                 {{ i }}
+             {% else %}
+                 <a href="/tacc_stats/search?p={{ i }}">{{ i }}</a> 
+             {% endif %}
+         {% endif %}
+    {% endfor %}
+    ]
+{% endif %}
+</div>
+</div>
