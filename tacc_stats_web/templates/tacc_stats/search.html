@@ -1,5 +1,10 @@
 <head>
 <script src="{{ STATIC_URL }}sorttable.js"></script>
+<style type="text/css">
+<!--
+@import url("{{ STATIC_URL }}style.css");
+-->
+</style>
 <title>Job Search Page</title> 
 </head>
 <div style="width:100%;height:30%">
@@ -13,11 +18,12 @@
 </div>
 <div style="float:right;">
 {% if COLORS %}
-    <table border ="1" cellpadding="5">
+    <table id="hor-minimalist-a" border ="1" cellpadding="5">
         <tr><th> Color Legend <th></tr>
         {% for key, value in COLORS.items %}
             <tr style="{{value}}">
                 <td>{{ key }}</td>
+		<td><br></td>
             </tr>
          {% endfor %}
     </table>
@@ -25,9 +31,9 @@
 </div>
 </div>
 <div>
-<div style="height:65%">
+<div style="height:65%;width:90%">
 {% if job_list %}
-    <table border="1" cellpadding="5" class="sortable">
+    <table id="box-table-a" border="1" cellpadding="5" class="sortable">
         <tr><th> ID </th><th> owner </th><th> hosts </th>
         <th> time spent </th><th> begin </th><th> memory used </th>
         <th> work open </th><th> irq </th></tr>
@@ -53,12 +59,12 @@
     [
     {% for i in pages %}
          {% if i == page %}
-             <a href="/tacc_stats/search?p={{ i }}"><b>{{ i }}</b></a>
+             <a href="/tacc_stats/search?p={{ i }}{{ query_string }}"><b>{{ i }}</b></a>
          {% else %}
              {% if i == '...' %}
                  {{ i }}
              {% else %}
-                 <a href="/tacc_stats/search?p={{ i }}">{{ i }}</a> 
+                 <a href="/tacc_stats/search?p={{ i }}{{ query_string }}">{{ i }}</a> 
              {% endif %}
          {% endif %}
     {% endfor %}

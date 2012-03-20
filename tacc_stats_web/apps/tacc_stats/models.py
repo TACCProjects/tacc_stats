@@ -2,6 +2,7 @@
 
 from django.db import models
 import time
+import math
 
 COLORS = { 
     'Normal' : "background-color: rgba(0%, 0%, 100%, .2);",
@@ -257,7 +258,7 @@ class Job(models.Model):
 
     def height(self):
         """ Returns a value to scale the table row height by in html """
-        return len(self.hosts.all()) * 10
+        return math.log(len(self.hosts.all())) * 10
 
     def get_owner(self):
         """ Returns a formatted version of the owner field """

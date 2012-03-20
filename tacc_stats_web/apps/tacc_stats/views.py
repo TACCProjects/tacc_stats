@@ -107,7 +107,7 @@ def _files_open_intensity(job, host):
     for filesystem in job.hosts[host].stats['llite']:
         files_opened = files_opened + job.hosts[host].stats['llite'][filesystem][: , files_opened_index]
 
-    intensity = NP.diff(files_opened)
+    intensity = NP.diff(files_opened) / NP.diff(job.times)
 
     return intensity
 
@@ -130,7 +130,7 @@ def _flops_intensity(job, host):
         if (key[:4] == 'core'):
             flops_used = flops_used + val['SSEFLOPS']
 
-    intensity = NP.log(NP.diff(flops_used)) / math.log(RANGER_MAX_FLOPS)
+    intensity = NP.diff(flops_used) / NP.diff(job.times) / 10 ** 9
 
     return intensity
 
@@ -154,7 +154,7 @@ def create_subheatmap(intensity, job, host, n, num_hosts):
     intensity = NP.array([intensity]*2, dtype=NP.float64)
 
     PLT.subplot(num_hosts+1, 1, n)
-    PLT.pcolor(x, NP.array([0, 1]), intensity, cmap=matplotlib.cm.Reds, vmin = 0, vmax = 1, edgecolors='none')
+    PLT.pcolor(x, NP.array([0, 1]), intensity, cmap=matplotlib.cm.Reds, vmin = 0, vmax = math.ceil(NP.max(intensity)), edgecolors='none')
 
     if (n != num_hosts):
         PLT.xticks([])
@@ -195,7 +195,7 @@ def create_heatmap(request, job_id, trait):
     elif (trait == 'flops'):
         PLT.suptitle('Flops Performed By Host', fontsize = 12)
 
-
+    max = 1
 
     for host in hosts:
         intensity = [0]
@@ -210,17 +210,19 @@ def create_heatmap(request, job_id, trait):
         create_subheatmap(intensity, job, host, n, num_hosts)
         n += 1
 
+
+    max = math.ceil(NP.max(intensity))
     f = PLT.gcf()
 #    cb = PLT.colorbar(orientation='vertical', fraction=5.0, pad = 1.0)
     cax = f.add_axes([0.91, 0.10, 0.03, 0.8])
-    cb = PLT.colorbar(orientation='vertical', cax=cax, ticks=[0, 1])
+    cb = PLT.colorbar(orientation='vertical', cax=cax, ticks=[0, max])
     
     if (trait == 'memory'):
         cb.set_label('% Memory')
     elif (trait == 'files'):
-        cb.set_label('% Files')
+        cb.set_label('Files Opened Per Second')
     elif (trait == 'flops'):
-        cb.set_label(' log % of Peak Flops')
+        cb.set_label('GFlops (Peak ~150)')
 
 #    PLT.setp(cb, 'Position', [.8314, .11, .0581, .8150])
 
@@ -234,30 +236,46 @@ def search(request):
     of jobs.
     """
     PAGE_LENGTH = 20
+    query_string = ""
 
     if request.method == 'POST':
         print request.POST
 
         form = SearchForm(request.POST)
-        query = request.POST
+        query = request.POST.copy()
+
+        if query.get('csrfmiddlewaretoken'):
+            query.__delitem__('csrfmiddlewaretoken')
+        
+        query_string = "&"
+	query_string += query.urlencode()
 
         job_list = Job.objects.all()
 
-        if form["acct_id"].value():
-            job_list = job_list.filter(acct_id = form["acct_id"].value())
-        if form["owner"].value():
-            job_list = job_list.filter(owner = form["owner"].value())
-        if form["begin"].value():
-            job_list = job_list.filter(begin__gte = form["begin"].value())
-        if form["end"].value():
-            job_list = job_list.filter(end__lte = form["end"].value())
-     #   if form["hosts"].value():
-     #       job_list = job_list.filter(hosts__in=form["hosts"].value())
-
-
     else:
-        form = SearchForm()
-        job_list = Job.objects.order_by('-begin')
+        form = SearchForm(request.GET)
+        query = request.GET.copy()
+
+        if query.get('p'):
+            query.__delitem__('p')
+        if query.get('csrfmiddlewaretoken'):
+            query.__delitem__('csrfmiddlewaretoken')
+
+        query_string = '&'
+        query_string += query.urlencode()
+
+        job_list = Job.objects.all()
+
+    if form["acct_id"].value():
+        job_list = job_list.filter(acct_id = form["acct_id"].value())
+    if form["owner"].value():
+        job_list = job_list.filter(owner = form["owner"].value())
+    if form["begin"].value():
+        job_list = job_list.filter(begin__gte = form["begin"].value())
+    if form["end"].value():
+        job_list = job_list.filter(end__lte = form["end"].value())
+#   if form["hosts"].value():
+#       job_list = job_list.filter(hosts__in=form["hosts"].value())
         
     num_jobs = job_list.count()
 
@@ -297,7 +315,7 @@ def search(request):
                 pages.append('...')
                 pages += range(num_pages - 3, num_pages)
 
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page})
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page, 'query_string' : query_string})
 
 
 def render_json(request):
