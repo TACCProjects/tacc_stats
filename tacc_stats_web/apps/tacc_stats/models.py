@@ -285,6 +285,16 @@ class Job(models.Model):
         """ Returns the start time of a the job in a readable format """
         return time.ctime(self.begin)
 
+    def host_names(self):
+        """ Returns a formatted list of the hosts of a job. """
+        return ', '.join([host.name for host in self.hosts.all()])
+
+    def host_list(self):
+
+        hosts = []
+        hosts.append(host.name for host in self.hosts.all())
+        return hosts
+
 class Monitor(models.Model):
     kind = models.CharField(max_length=32)
     system = models.ForeignKey(System)

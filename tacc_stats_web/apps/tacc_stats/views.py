@@ -29,7 +29,7 @@ jsonify = json.encode
 
 from dojoserializer import serialize
 
-from tacc_stats.models import Job, COLORS
+from tacc_stats.models import Job, COLORS, Node
 import job
 
 SHELVE_DIR = '/home/tacc_stats/sample-jobs/jobs'
@@ -292,6 +292,39 @@ def search(request):
 
     num_pages = int(math.ceil(num_jobs / PAGE_LENGTH))
 
+    pages = create_pagelist(num_pages, PAGE_LENGTH, page)
+
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page, 'query_string' : query_string})
+
+def list_hosts(request):
+    """ Creates a list of hosts with their corresponding jobs """
+    PAGE_LENGTH = 10
+
+    num_hosts = Node.objects.all().count()
+    num_pages = int(math.ceil(num_hosts / PAGE_LENGTH))
+
+    start = 0
+    page = 0
+    end = PAGE_LENGTH
+
+    if request.GET.get('p'):
+        page = int(request.GET.get('p'))
+        start = int(request.GET.get('p')) * PAGE_LENGTH
+        end = start + PAGE_LENGTH
+
+    hosts = Node.objects.all().order_by('name')[start:end]
+
+    pages = create_pagelist(num_pages, PAGE_LENGTH, page)
+
+    jobs_by_host = {}
+    for host in hosts:
+        host_jobs = Job.objects.filter(hosts = host).order_by('begin')
+        jobs_by_host[host.name] = host_jobs
+
+    return render_to_response('tacc_stats/hosts.html', {'hosts' : hosts, 'jobs_by_host' : jobs_by_host, 'pages' : pages, 'page' : page })
+
+def create_pagelist(num_pages, PAGE_LENGTH, page):
+    """ Creates a formatted list of pages which can be hyperlinked """
     pages = []
 
     if num_pages >= 0 and num_pages <= 6:
@@ -315,8 +348,7 @@ def search(request):
                 pages.append('...')
                 pages += range(num_pages - 3, num_pages)
 
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page, 'query_string' : query_string})
-
+    return pages
 
 def render_json(request):
     """ Creates a json page for a dojo data grid to query the jobs data from """
