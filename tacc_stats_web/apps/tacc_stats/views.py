@@ -134,6 +134,10 @@ def _flops_intensity(job, host):
 
     return intensity
 
+def _default_intensity(job, host, schema, entry)
+    """ The intensity function defaulted to for a given statistic """
+    
+
 def create_subheatmap(intensity, job, host, n, num_hosts):
     """
     Creates a heatmap in a subplot.
