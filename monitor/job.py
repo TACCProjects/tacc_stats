@@ -40,7 +40,7 @@ def trace(fmt, *args):
 def error(fmt, *args):
     msg = fmt % args
     sys.stderr.write(prog + ": " + msg)
-    
+
 
 def stats_file_discard_record(file):
     for line in file:
@@ -163,6 +163,7 @@ class Host(object):
                 elif c == SF_COMMENT_CHAR:
                     pass
                 else:
+
                     break
             except Exception as exc:
                 self.trace("file `%s', caught `%s' discarding line `%s'\n",
@@ -271,6 +272,52 @@ class Host(object):
         #     return False
         return self.raw_stats
 
+    def interpret_amd64_pmc_cpu(self):
+        '''
+        This function returns a dictionary containing:
+        flops, user cycles, and dcache fills for all 16 cores in the AMD CPU
+        DRAM access and link use by the three HTlinks for all 4 sockets
+        '''
+        EVENTS = [
+        ['DRAMaccesses', 'UserCycles', 'DCacheSysFills', 'SSEFLOPS'],
+        ['UserCycles', 'HTlink0Use', 'DCacheSysFills', 'SSEFLOPS'],
+        ['UserCycles', 'DCacheSysFills', 'HTlink1Use', 'SSEFLOPS'],
+        ['UserCycles', 'DCacheSysFills', 'SSEFLOPS', 'HTlink2Use']]
+
+	cpus = self.stats['amd64_pmc']
+
+        CNTRS = dict()
+
+        for core, stats in cpus.iteritems():
+             core_str = "core" + core
+	     core = int(core)
+
+             SSEFLOPS_CNTR = EVENTS[core % 4].index('SSEFLOPS') + 4
+             UserCycles_CNTR = EVENTS[core % 4].index('UserCycles') + 4
+             DCacheSysFills_CNTR = EVENTS[core % 4].index('DCacheSysFills') + 4             
+             core_cntrs = dict()
+             core_cntrs['SSEFLOPS'] = stats[ : , SSEFLOPS_CNTR]
+             core_cntrs['UserCycles'] = stats[ :, UserCycles_CNTR]
+             core_cntrs['DCacheSysFills'] = stats[ :, DCacheSysFills_CNTR]
+
+             CNTRS[core_str] = core_cntrs
+             
+             #soc_index returns the index in the EVENTS array of the element
+             # which has not been accessed
+             soc_index = 4*3 + 6 - SSEFLOPS_CNTR - UserCycles_CNTR - DCacheSysFills_CNTR
+             soc_field = EVENTS[core % 4][soc_index]
+             soc_str = "soc" + repr(core / 4)
+             
+             soc_cntrs = dict()
+	     if CNTRS.has_key(soc_str):
+                 soc_cntrs = CNTRS[soc_str]
+             
+             soc_cntrs[soc_field] = stats[ :, soc_index + 4]
+
+             CNTRS[soc_str] = soc_cntrs
+
+
+        return CNTRS
 
 class Job(object):
     # TODO errors/comments
@@ -323,7 +370,7 @@ class Job(object):
         times.sort()
         # Ensure that times is sane and monotonically increasing.
         t_min = self.start_time
-        for i in range(0, len(times)): 
+        for i in range(0, len(times)):
             t = max(times[i], t_min)
             times[i] = t
             t_min = t + 1
@@ -332,7 +379,7 @@ class Job(object):
         self.trace("job start to first collect %d\n", times[0] - self.start_time)
         self.trace("last collect to job end %d\n", self.end_time - times[-1])
         self.times = numpy.array(times, dtype=numpy.uint64)
-    
+
     def process_dev_stats(self, host, type_name, schema, dev_name, raw):
         def trace(fmt, *args):
             return self.trace("host `%s', type `%s', dev `%s': " + fmt,
@@ -399,13 +446,13 @@ class Job(object):
                     type_stats[dev_name] = dev_stats
             del host.raw_stats
         # TODO Clear mult, width from schemas.
-    
+
     def aggregate_stats(self, type_name, host_names=None, dev_names=None):
         # TODO Handle control registers.
         schema = self.schema[type_name]
         m = len(self.times)
         n = len(schema.entries)
-        A = numpy.zeros((m, n), dtype=numpy.uint64) # Output.       
+        A = numpy.zeros((m, n), dtype=numpy.uint64) # Output.
         nr_hosts = 0
         nr_devs = 0
         if host_names:
@@ -425,6 +472,62 @@ class Job(object):
                 A += dev_stats
                 nr_devs += 1
         return (A, nr_hosts, nr_devs)
+
+class JobAggregator(object):
+    """Aggregates a view of the data in a job"""
+    dont_collapse_devs = ['llite']
+
+    def __init__(self, a_job):
+        self.job = a_job
+        self.stats = self._collect_stats()
+
+    def _agg_val(self, schema_entry, vals):
+        if schema_entry.is_event:
+            ret_val =  sum(vals)
+        elif schema_entry.is_control:
+            ret_val = sum(vals)
+        else: # is gauge
+            ret_val = sum(vals) / float(len(vals))
+        return int(ret_val)
+
+    def _agg_uncollapsed(self, stats, monitor_type, subtypes):
+        #XXX assuming all the hosts have the same devices.
+        schema = self.job.schema[monitor_type]
+        hostname = self.job.hosts.keys()[0]
+        dev_names = self.job.hosts[hostname].stats[monitor_type].keys()
+        for st_idx, subtype in enumerate(subtypes):
+            for dev in dev_names:
+                key = "_".join([monitor_type, subtype, dev.replace('/','')])
+                val_ticks = []
+                for host in self.job.hosts:
+                    type_stats = self.job.hosts[host].stats.get(monitor_type)
+                    if type_stats is None:
+                        continue
+                    val_ticks.append(type_stats[dev][:,st_idx])
+                vals = [sum(ticks) for ticks in zip(*val_ticks)]
+                stats[key] = self._agg_val(schema.keys[subtype], vals)
+
+    def _agg_collapsed(self, stats, monitor_type, subtypes):
+        schema = self.job.schema[monitor_type]
+        A, nr_hosts, nr_devs = self.job.aggregate_stats(monitor_type)
+        for st_idx, subtype in enumerate(subtypes):
+            key = "_".join([monitor_type, subtype])
+            try:
+                stats[key] = self._agg_val(schema.keys[subtype], A[:,st_idx])
+            except:
+                import pdb; pdb.set_trace()
+
+    def _collect_stats(self):
+        stats = {}
+        for monitor_type in self.job.schema:
+            schema = self.job.schema[monitor_type]
+            subtypes = sorted(schema.keys,
+                              key=lambda x: schema.keys[x].index)
+            if monitor_type in self.dont_collapse_devs:
+                self._agg_uncollapsed(stats, monitor_type, subtypes)
+            else:
+                self._agg_collapsed(stats, monitor_type, subtypes)
+        return stats
 
 def test():
     jobid = '2255593'

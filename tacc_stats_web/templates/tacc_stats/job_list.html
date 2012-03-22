@@ -5,16 +5,19 @@
 <body>
 {% if job_list %}
     <table border="1" cellpadding="5">
-        <tr><th> ID </th><th> owner </th><th> time spent </th><th> memory used
-        </th><th> work open </th><th> irq </th></tr>
+        <tr><th> name </th><th> owner </th><th> hosts </th>
+	<th> time spent </th><th> begin </th><th> memory used </th>
+	<th> work open </th><th> irq </th></tr>
     {% for job in job_list %}
-        <tr bgcolor="{{job.color}}">
-            <td><a href="job/{{ job.id }}/">{{ job.id }}</a>
+        <tr style="{{job.color}}">
+            <td><a href="/{{ job.pe }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
             <td>{{ job.owner }}</td>
+            <td align=right>{{ job.nr_hosts }}</td>
             <td align=right>{{ job.timespent }}</td>
-            <td align=right>{{ job.MemUsed }}</td>
-            <td align=right>{{ job.work_open }}</td>
-            <td align=right>{{ job.irq }}</td>
+            <td align=right>{{ job.start_time }}</td>
+            <td align=right>{{ job.mem_MemUsed }}</td>
+            <td align=right>{{ job.llite_open_work }}</td>
+            <td align=right>{{ job.cpu_irq }}</td>
         </tr>
     {% endfor %}
     </ul>

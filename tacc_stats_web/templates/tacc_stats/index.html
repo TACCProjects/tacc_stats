@@ -4,7 +4,8 @@
 </head>
 <body>
 <h1>TACC Stats Web Home</h1>
-<a href="joblist">joblist</a>
+<a href="search">jobsearch</a>
+
 <h2> Charts at a glance </h2>
 
 <img src="job_timespent_hist" alt="Histogram of jobs" />
@@ -16,13 +17,13 @@
         <tr><th> ID </th><th> owner </th><th> time spent </th><th> memory used
         </th><th> work open </th><th> irq </th></tr>
     {% for job in job_list %}
-        <tr bgcolor="{{job.color}}">
-            <td><a href="job/{{ job.acct_id }}/">{{ job.acct_id }}</a>
+        <tr style="{{job.color}}">
+            <td><a href="job/{{ job.id }}/">{{ job.acct_id }}</a>
             <td>{{ job.owner }}</td>
-            <td align=right>{{ job.timespent }}</td>
-            <td align=right>{{ job.MemUsed }}</td>
-            <td align=right>{{ job.work_open }}</td>
-            <td align=right>{{ job.irq }}</td>
+            <td align=right>{{ job.runtime }}</td>
+            <td align=right>{{ job.mem_MemUsed }}</td>
+            <td align=right>{{ job.llite_open_work }}</td>
+            <td align=right>{{ job.cpu_irq }}</td>
         </tr>
     {% endfor %}
     </ul>
