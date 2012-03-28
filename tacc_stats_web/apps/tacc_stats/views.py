@@ -280,6 +280,11 @@ def search(request):
         job_list = job_list.filter(end__lte = form["end"].value())
 #   if form["hosts"].value():
 #       job_list = job_list.filter(hosts__in=form["hosts"].value())
+    if form["sort"].value():
+        if form["sort"].value() == 'timespent':
+            job_list = job_list.extra(select={"runtime": '"end" - "begin"'}, order_by = ['runtime'])
+        else:
+            job_list = job_list.order_by(form["sort"].value())
         
     num_jobs = job_list.count()
 
