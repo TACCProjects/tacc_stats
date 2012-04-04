@@ -1,8 +1,12 @@
 <head>
 <script src="{{ STATIC_URL }}sorttable.js"></script>
+<script src="{{ STATIC_URL }}jquery.min.js"></script>
+<script src="{{ STATIC_URL }}anytime.js"></script>
+<script src="{{ STATIC_URL }}jquery.dataTables.min.js"></script>
+<link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}anytime.css" />
 <style type="text/css">
 <!--
-@import url("{{ STATIC_URL }}style.css");
+@import url("{{ STATIC_URL }}jquery.dataTables.css");
 -->
 </style>
 <title>Job Search Page</title> 
@@ -15,6 +19,10 @@
     </table>
     <p><input type="submit" value="Submit"></p>
 <form>
+<script>
+    AnyTime.picker("id_begin", { format: "%m/%d/%z"});
+    AnyTime.picker("id_end", { format: "%m/%d/%z"});
+</script>
 </div>
 <div style="float:right;">
 {% if COLORS %}
@@ -31,25 +39,45 @@
 </div>
 </div>
 <div>
-<div style="height:65%;width:90%">
+<div style="height:65%;width:100%">
 {% if job_list %}
-    <table id="box-table-a" border="1" cellpadding="5" class="sortable">
-        <tr><th> ID </th><th> owner </th><th> hosts </th>
-        <th> time spent </th><th> begin </th><th> memory used </th>
-        <th> work open </th><th> irq </th></tr>
-    {% for job in job_list %}
-        <tr style="{{job.color}}">
-            <td height="{{ job.height }}"><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
-            <td>{{ job.get_owner }}</td>
-            <td align=right>{{ job.nr_hosts }}</td>
-            <td align=right>{{ job.timespent }}</td>
-            <td align=right>{{ job.start_time }}</td>
-            <td align=right>{{ job.mem_MemUsed }}</td>
-            <td align=right>{{ job.llite_open_work }}</td>
-            <td align=right>{{ job.cpu_irq }}</td>
-        </tr>
-    {% endfor %}
-    </ul>
+    <table id="job_list" border="1" cellpadding="5" class="sortable">
+        <thead>
+            <tr>
+                <th> ID </th>
+                <th> owner </th>
+                <th> hosts </th>
+                <th> time spent </th>
+                <th> begin </th>
+                <th> memory used </th>
+                <th> work open </th>
+                <th> irq </th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for job in job_list %}
+            <tr style="{{job.color}}">
+                <td height="{{ job.height }}"><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
+                <td>{{ job.get_owner }}</td>
+                <td align=right>{{ job.nr_hosts }}</td>
+                <td align=right>{{ job.timespent }}</td>
+                <td align=right>{{ job.start_time }}</td>
+                <td align=right>{{ job.mem_MemUsed }}</td>
+                <td align=right>{{ job.llite_open_work }}</td>
+                <td align=right>{{ job.cpu_irq }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <script>
+        $(document).ready(function() {
+            $('#job_list').dataTable( {
+//                "bProcessing" : true,
+//                "bServerSide" : true,
+//                "sAjaxSource" : "tacc_stats/data"
+            } );
+        } );
+    </script>
 {% else %}
     <p>No jobs are available.</p>
 {% endif %}

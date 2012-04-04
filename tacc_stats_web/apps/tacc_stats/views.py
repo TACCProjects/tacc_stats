@@ -9,6 +9,8 @@ from django.views.generic import DetailView, ListView
 from django.db.models import Q
 from django.utils.simplejson import dumps, loads, JSONEncoder
 
+import datetime
+
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -239,7 +241,7 @@ def search(request):
     Creates a search form that can be used to navigate through the list 
     of jobs.
     """
-    PAGE_LENGTH = 20
+    PAGE_LENGTH = 1000
     query_string = ""
 
     if request.method == 'POST':
@@ -275,9 +277,13 @@ def search(request):
     if form["owner"].value():
         job_list = job_list.filter(owner = form["owner"].value())
     if form["begin"].value():
-        job_list = job_list.filter(begin__gte = form["begin"].value())
+        date = form["begin"].value()
+        date = time.strptime(date, "%m/%d/%Y")
+        job_list = job_list.filter(begin__gte = time.mktime(date))
     if form["end"].value():
-        job_list = job_list.filter(end__lte = form["end"].value())
+        date = form["end"].value()
+        date = time.strptime(date, "%m/%d/%Y")
+        job_list = job_list.filter(end__lte = time.mktime(date))
 #   if form["hosts"].value():
 #       job_list = job_list.filter(hosts__in=form["hosts"].value())
     if form["sort"].value():
@@ -315,22 +321,32 @@ def list_hosts(request):
     start = 0
     page = 0
     end = PAGE_LENGTH
+    hostname = ""
 
     if request.GET.get('p'):
         page = int(request.GET.get('p'))
         start = int(request.GET.get('p')) * PAGE_LENGTH
         end = start + PAGE_LENGTH
 
+    if request.GET.get('host'):
+        hostname = request.GET.get('host')
+
     hosts = Node.objects.all().order_by('name')[start:end]
 
     pages = create_pagelist(num_pages, PAGE_LENGTH, page)
 
-    jobs_by_host = {}
-    for host in hosts:
-        host_jobs = Job.objects.filter(hosts = host).order_by('begin')
-        jobs_by_host[host.name] = host_jobs
+    host = Node.objects.filter(name = hostname)
 
-    return render_to_response('tacc_stats/hosts.html', {'hosts' : hosts, 'jobs_by_host' : jobs_by_host, 'pages' : pages, 'page' : page })
+    jobs_by_host = Job.objects.filter(hosts = host).order_by('-begin')
+
+#    jobs_by_host = {}
+#    for host in hosts:
+#       host_jobs = Job.objects.filter(hosts = hostname).order_by('begin')
+#        jobs_by_host[host.name] = host_jobs
+
+    print hostname
+
+    return render_to_response('tacc_stats/hosts.html', {'hosts' : hosts, 'hostname': hostname, 'jobs_by_host' : jobs_by_host, 'pages' : pages, 'page' : page })
 
 def create_pagelist(num_pages, PAGE_LENGTH, page):
     """ Creates a formatted list of pages which can be hyperlinked """
@@ -375,17 +391,22 @@ def get_job(request, host, id):
 
 def data(request):
     """ Creates a page with data as defined by GET """
-    search = request.GET
-    start = int(search.get('start'))
-    end = start + int(search.get('count'))
+    job_list = Job.objects.all()
 
-    job_list = Job.objects.order_by('-begin')[start:end]
-  
+    if request.GET['iDisplayStart'] and request.GET['iDisplayLength'] != '-1':
+        start = int(request.GET['iDisplayStart'])
+        end = int(request.GET['iDisplayLength']) + start
+        job_list = job_list[start:end].values()
+
     num_jobs = Job.objects.count()
-
-    json_data = serialize(job_list)
-    
-    json_data = json_data.replace(u"\"numRows\": 20", u"\"numRows\": %i" % (num_jobs) )
+    output = {
+                  "sEcho" : int(request.GET['sEcho']),
+                  "iTotalRecords" : num_jobs,
+                  "iTotalDisplayRecords" : num_jobs,
+                  "aaData" : list(job_list),
+             }
+ 
+    json_data = jsonify(output)
 
     return HttpResponse(json_data, mimetype="application/json")
 
