@@ -241,75 +241,13 @@ def search(request):
     Creates a search form that can be used to navigate through the list 
     of jobs.
     """
-    PAGE_LENGTH = 1000
-    query_string = ""
-
     if request.method == 'POST':
-        print request.POST
-
         form = SearchForm(request.POST)
-        query = request.POST.copy()
-
-        if query.get('csrfmiddlewaretoken'):
-            query.__delitem__('csrfmiddlewaretoken')
-        
-        query_string = "&"
-	query_string += query.urlencode()
-
-        job_list = Job.objects.all()
 
     else:
         form = SearchForm(request.GET)
-        query = request.GET.copy()
 
-        if query.get('p'):
-            query.__delitem__('p')
-        if query.get('csrfmiddlewaretoken'):
-            query.__delitem__('csrfmiddlewaretoken')
-
-        query_string = '&'
-        query_string += query.urlencode()
-
-        job_list = Job.objects.all()
-
-    if form["acct_id"].value():
-        job_list = job_list.filter(acct_id = form["acct_id"].value())
-    if form["owner"].value():
-        job_list = job_list.filter(owner = form["owner"].value())
-    if form["begin"].value():
-        date = form["begin"].value()
-        date = time.strptime(date, "%m/%d/%Y")
-        job_list = job_list.filter(begin__gte = time.mktime(date))
-    if form["end"].value():
-        date = form["end"].value()
-        date = time.strptime(date, "%m/%d/%Y")
-        job_list = job_list.filter(end__lte = time.mktime(date))
-#   if form["hosts"].value():
-#       job_list = job_list.filter(hosts__in=form["hosts"].value())
-    if form["sort"].value():
-        if form["sort"].value() == 'timespent':
-            job_list = job_list.extra(select={"runtime": '"end" - "begin"'}, order_by = ['runtime'])
-        else:
-            job_list = job_list.order_by(form["sort"].value())
-        
-    num_jobs = job_list.count()
-
-    start = 0
-    page = 0
-    end = PAGE_LENGTH
-
-    if request.GET.get('p'):
-        page = int(request.GET.get('p'))
-        start = int(request.GET.get('p')) * PAGE_LENGTH
-        end = start + PAGE_LENGTH
-
-    job_list = job_list[start : end]
-
-    num_pages = int(math.ceil(num_jobs / PAGE_LENGTH))
-
-    pages = create_pagelist(num_pages, PAGE_LENGTH, page)
-
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page, 'query_string' : query_string})
+    return render(request, 'tacc_stats/search.html', {'form' : form, 'COLORS' : COLORS, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value()})
 
 def list_hosts(request):
     """ Creates a list of hosts with their corresponding jobs """
@@ -391,19 +329,58 @@ def get_job(request, host, id):
 
 def data(request):
     """ Creates a page with data as defined by GET """
-    job_list = Job.objects.all()
+    COLUMNS = ['acct_id', 'owner', 'nr_slots', 'runtime', 'begin', 'mem_MemUsed', 'llite_open_work', 'cpu_irq']
 
-    if request.GET['iDisplayStart'] and request.GET['iDisplayLength'] != '-1':
+    job_list = Job.objects.all()
+    num_jobs = 0
+
+    if request.GET["acct_id"] and not request.GET["acct_id"] == 'None':
+        job_list = job_list.filter(acct_id = request.GET["acct_id"])
+    if request.GET["owner"] and not request.GET["owner"] == 'None':
+        job_list = job_list.filter(owner = request.GET["owner"])
+    if request.GET["begin"] and not request.GET["begin"] == 'None':
+        date = request.GET["begin"]
+        date = time.strptime(date, "%m/%d/%Y %I:%M")
+        job_list = job_list.filter(begin__gte = time.mktime(date))
+    if request.GET["end"] and not request.GET["end"] == 'None':
+        date = request.GET["end"]
+        date = time.strptime(date, "%m/%d/%Y %I:%M")
+        job_list = job_list.filter(end__lte = time.mktime(date))
+
+    if request.GET['iSortCol_0']:
+        col = COLUMNS[int(request.GET['iSortCol_0'])]
+        if not col == 'runtime':
+            if request.GET['sSortDir_0'] == 'asc':
+                job_list = job_list.order_by(col)
+            else:
+                job_list = job_list.order_by('-' + col)
+        else:
+            job_list = job_list.extra(select={"runtime": '"end" - "begin"'}, order_by = ['runtime'])
+
+    if request.GET['iDisplayStart'] and request.GET['iDisplayLength'] != '-1':  
         start = int(request.GET['iDisplayStart'])
         end = int(request.GET['iDisplayLength']) + start
-        job_list = job_list[start:end].values()
+        num_jobs = job_list.count()
+        job_list = job_list[start:end]
+ 
+    aaData = []
 
-    num_jobs = Job.objects.count()
+    for job in job_list:
+        job_data = [ "<a href='/tacc_stats/{job.system}/{job.acct_id}'>{job.acct_id}</a>".format(job=job),
+                     job.owner.__str__(),
+                     job.nr_hosts,
+                     job.timespent(),
+                     job.start_time(),
+                     job.mem_MemUsed,
+                     job.llite_open_work,
+                     job.cpu_irq ]
+        aaData.append(job_data)
+
     output = {
                   "sEcho" : int(request.GET['sEcho']),
                   "iTotalRecords" : num_jobs,
                   "iTotalDisplayRecords" : num_jobs,
-                  "aaData" : list(job_list),
+                  "aaData" : aaData,
              }
  
     json_data = jsonify(output)

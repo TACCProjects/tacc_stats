@@ -20,8 +20,8 @@
     <p><input type="submit" value="Submit"></p>
 <form>
 <script>
-    AnyTime.picker("id_begin", { format: "%m/%d/%z"});
-    AnyTime.picker("id_end", { format: "%m/%d/%z"});
+    AnyTime.picker("id_begin", { format: "%m/%d/%z %l:%i"});
+    AnyTime.picker("id_end", { format: "%m/%d/%z %l:%i"});
 </script>
 </div>
 <div style="float:right;">
@@ -40,7 +40,6 @@
 </div>
 <div>
 <div style="height:65%;width:100%">
-{% if job_list %}
     <table id="job_list" border="1" cellpadding="5" class="sortable">
         <thead>
             <tr>
@@ -55,48 +54,21 @@
             </tr>
         </thead>
         <tbody>
-        {% for job in job_list %}
-            <tr style="{{job.color}}">
-                <td height="{{ job.height }}"><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
-                <td>{{ job.get_owner }}</td>
-                <td align=right>{{ job.nr_hosts }}</td>
-                <td align=right>{{ job.timespent }}</td>
-                <td align=right>{{ job.start_time }}</td>
-                <td align=right>{{ job.mem_MemUsed }}</td>
-                <td align=right>{{ job.llite_open_work }}</td>
-                <td align=right>{{ job.cpu_irq }}</td>
-            </tr>
-        {% endfor %}
         </tbody>
     </table>
     <script>
         $(document).ready(function() {
             $('#job_list').dataTable( {
-//                "bProcessing" : true,
-//                "bServerSide" : true,
-//                "sAjaxSource" : "tacc_stats/data"
+                "bProcessing" : true,
+                "bServerSide" : true,
+                "sAjaxSource" : "/tacc_stats/data/",
+                "fnServerParams" : function ( aoData ) {
+                   aoData.push( { "name" : "acct_id", "value" : "{{ acct_id}}" } );
+                   aoData.push( { "name" : "owner", "value" : "{{ owner }}" } );
+                   aoData.push( { "name" : "begin", "value" : "{{ begin }}" } );
+                   aoData.push( { "name" : "end", "value" : "{{ end }}" } );
+                }
             } );
         } );
     </script>
-{% else %}
-    <p>No jobs are available.</p>
-{% endif %}
-</div>
-<div style="height:5%;clear:both;">
-{% if pages %}
-    [
-    {% for i in pages %}
-         {% if i == page %}
-             <a href="/tacc_stats/search?p={{ i }}{{ query_string }}"><b>{{ i }}</b></a>
-         {% else %}
-             {% if i == '...' %}
-                 {{ i }}
-             {% else %}
-                 <a href="/tacc_stats/search?p={{ i }}{{ query_string }}">{{ i }}</a> 
-             {% endif %}
-         {% endif %}
-    {% endfor %}
-    ]
-{% endif %}
-</div>
 </div>
