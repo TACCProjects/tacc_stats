@@ -3,6 +3,8 @@
 from django.db import models
 import time
 import math
+import datetime
+import dateutil
 
 COLORS = { 
     'Normal' : "background-color: rgba(0%, 0%, 100%, .2);",
@@ -279,7 +281,10 @@ class Job(models.Model):
 
     def timespent(self):
         """ Returns the runtime of the job in a readable format """
-        return time.strftime('%H:%M:%S', time.gmtime(self.runtime))
+        d1 = datetime.datetime.fromtimestamp(self.begin)
+        d2 = datetime.datetime.fromtimestamp(self.end)
+        rd = dateutil.relativedelta.relativedelta(d2, d1)
+        return "%d days, %d:%d:%d" % (rd.days, rd.hours, rd.minutes, rd.seconds)
 
     def start_time(self):
         """ Returns the start time of a the job in a readable format """
@@ -294,6 +299,10 @@ class Job(models.Model):
         hosts = []
         hosts.append(host.name for host in self.hosts.all())
         return hosts
+
+    def attrs(self):
+        for field in self._meta.fields:
+            yield field.name, getattr(self, field.name)
 
 class Monitor(models.Model):
     kind = models.CharField(max_length=32)

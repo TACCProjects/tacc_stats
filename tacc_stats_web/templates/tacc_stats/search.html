@@ -1,5 +1,4 @@
 <head>
-<script src="{{ STATIC_URL }}sorttable.js"></script>
 <script src="{{ STATIC_URL }}jquery.min.js"></script>
 <script src="{{ STATIC_URL }}anytime.js"></script>
 <script src="{{ STATIC_URL }}jquery.dataTables.min.js"></script>
@@ -9,9 +8,18 @@
 @import url("{{ STATIC_URL }}jquery.dataTables.css");
 -->
 </style>
+<script>
+    function toggleCol( iCol ) {
+        /* Toggles an individual col */
+
+        var oTable = $('#job_list').dataTable();
+        var bVis = oTable.fnSettings().aoColumns[iCol].bVisible;
+        oTable.fnSetColumnVis( iCol, bVis ? false : true);
+    }
+</script>
 <title>Job Search Page</title> 
 </head>
-<div style="width:100%;height:30%">
+<div style="width:100%">
 <div style="float:left;">
 <form action="/tacc_stats/search/" method="POST">{% csrf_token %}
     <table>
@@ -23,6 +31,7 @@
     AnyTime.picker("id_begin", { format: "%m/%d/%z %l:%i"});
     AnyTime.picker("id_end", { format: "%m/%d/%z %l:%i"});
 </script>
+
 </div>
 <div style="float:right;">
 {% if COLORS %}
@@ -40,6 +49,8 @@
 </div>
 <div>
 <div style="height:65%;width:100%">
+    
+
     <table id="job_list" border="1" cellpadding="5" class="sortable">
         <thead>
             <tr>
@@ -58,16 +69,16 @@
     </table>
     <script>
         $(document).ready(function() {
-            $('#job_list').dataTable( {
+            oTable = $('#job_list').dataTable( {
                 "bProcessing" : true,
                 "bServerSide" : true,
                 "sAjaxSource" : "/tacc_stats/data/",
                 "fnServerParams" : function ( aoData ) {
-                   aoData.push( { "name" : "acct_id", "value" : "{{ acct_id}}" } );
+                   aoData.push( { "name" : "acct_id", "value" : "{{ acct_id }}" } );
                    aoData.push( { "name" : "owner", "value" : "{{ owner }}" } );
                    aoData.push( { "name" : "begin", "value" : "{{ begin }}" } );
                    aoData.push( { "name" : "end", "value" : "{{ end }}" } );
-                }
+                },
             } );
         } );
     </script>

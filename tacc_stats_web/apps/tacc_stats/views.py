@@ -355,7 +355,10 @@ def data(request):
             else:
                 job_list = job_list.order_by('-' + col)
         else:
-            job_list = job_list.extra(select={"runtime": '"end" - "begin"'}, order_by = ['runtime'])
+            if request.GET['sSortDir_0'] == 'asc':
+                job_list = job_list.extra(select={"diff": '"end" - "begin"'}, order_by = ['diff'])
+            else:
+                job_list = job_list.extra(select={"diff": '"end" - "begin"'}, order_by = ['-diff']) 
 
     if request.GET['iDisplayStart'] and request.GET['iDisplayLength'] != '-1':  
         start = int(request.GET['iDisplayStart'])
@@ -371,9 +374,9 @@ def data(request):
                      job.nr_hosts,
                      job.timespent(),
                      job.start_time(),
-                     job.mem_MemUsed,
-                     job.llite_open_work,
-                     job.cpu_irq ]
+                     convert_bytes(job.mem_MemUsed),
+                     convert_bytes(job.llite_open_work),
+                     convert_bytes(job.cpu_irq) ]
         aaData.append(job_data)
 
     output = {
@@ -386,6 +389,26 @@ def data(request):
     json_data = jsonify(output)
 
     return HttpResponse(json_data, mimetype="application/json")
+
+def convert_bytes(size):
+    """ Convert bytes """
+    unit = 'B'
+
+    if size > 1024:
+        size = size / 1024
+        unit = 'kB'
+        if size > 1024:
+            size = size / 1024
+            unit = 'MB'
+            if size > 1024:
+                size = size / 1024
+                unit = 'GB'
+                if size > 1024:
+                    size = size / 1024
+                    unit = 'TB'
+
+    return "%i %s" % (size, unit)
+            
 
 class JobListView(ListView):
     """
