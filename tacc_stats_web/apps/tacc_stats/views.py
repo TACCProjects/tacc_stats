@@ -7,6 +7,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
 from django.db.models import Q
+from django.db import models
 from django.utils.simplejson import dumps, loads, JSONEncoder
 
 import datetime
@@ -247,7 +248,22 @@ def search(request):
     else:
         form = SearchForm(request.GET)
 
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'COLORS' : COLORS, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value()})
+    fields  = []
+    job = Job.objects.all()[0]
+#    for attr, val in job.__dict__.iteritems():
+#        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+#            fields.append(attr)
+
+    count = 7
+    aTargets_str = "[ ]"
+#    for field in fields:
+#        count += 1
+#        if not count - 7 == len(fields):
+#            aTargets_str += "%d, " % (count)
+#        else:
+#            aTargets_str += "%d] " % (count)
+
+    return render(request, 'tacc_stats/search.html', {'aTargets_str' : aTargets_str, 'form' : form, 'COLORS' : COLORS, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value(), 'fields' : fields})
 
 def list_hosts(request):
     """ Creates a list of hosts with their corresponding jobs """
@@ -377,6 +393,11 @@ def data(request):
                      convert_bytes(job.mem_MemUsed),
                      convert_bytes(job.llite_open_work),
                      convert_bytes(job.cpu_irq) ]
+#        for attr, val in job.__dict__.iteritems():
+#            if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+#                print attr
+#                job_data.append(val)
+
         aaData.append(job_data)
 
     output = {
@@ -409,6 +430,63 @@ def convert_bytes(size):
 
     return "%i %s" % (size, unit)
             
+def job_JSON_view(request, host, id):
+    """ Forms a JSON object from a job id """
+    t0 = time.clock()
+    print "Started method"
+
+    job_shelf = shelve.open(SHELVE_DIR)
+
+    t1 = time.clock() - t0
+    print "Shelve opened at %f" % (t1)
+
+    job = job_shelf[id]
+
+    t2 = time.clock() - t0
+    print "Job loaded at %f" % (t2)
+
+    hosts = {}
+    for name in job.hosts.keys():
+        data = {}
+        data['name'] = name
+       
+        stats = {}
+        fields = job.hosts[name].stats
+        for field in fields:
+            stats_inside = {}
+            for i in fields[field]:
+                stats_inside[i] = fields[field][i].tolist()
+            
+            stats[field] = stats_inside
+ 
+        cpu_data = {}
+        cpu_elements = job.hosts[name].interpret_amd64_pmc_cpu()
+        for ele in cpu_elements:
+            ele_data = {}
+            for l in cpu_elements[ele]:
+                ele_data[l] = cpu_elements[ele][l].tolist()
+            
+            cpu_data[ele] = ele_data
+     
+        data['interpret_amd64_pmc_cpu'] = cpu_data
+        data['stats'] = stats
+
+        hosts[name] = data
+
+    t3 = time.clock() - t0
+    print "Iterated at %f" % (t3)
+
+    json_data = jsonify({'acct' : job.acct,
+                         'end_time' : job.end_time,
+                         'id' : job.id,
+                         'start_time' : job.start_time,
+                         'times' : job.times.tolist(),
+                         'hosts' : hosts
+                        })
+    t4 = time.clock() - t0
+    print "Jsonified at %f" % (t4)
+
+    return HttpResponse(json_data, mimetype="application/json")
 
 class JobListView(ListView):
     """

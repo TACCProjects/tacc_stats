@@ -1,7 +1,7 @@
 from django.conf.urls.defaults import patterns, url
 from django.views.generic import DetailView, ListView
 from tacc_stats.models import Job
-from tacc_stats.views import index, job_memused_hist, job_timespent_hist, create_heatmap, search, JobListView, render_json, get_job, data, list_hosts
+from tacc_stats.views import index, job_memused_hist, job_timespent_hist, create_heatmap, search, JobListView, render_json, get_job, data, list_hosts, job_JSON_view
 
 urlpatterns = patterns('',
     url(r'^$', index),
@@ -22,4 +22,5 @@ urlpatterns = patterns('',
     url(r'^(\w+)/(\d+)/$', get_job ),
     url(r'^data/$', data ),
     url(r'^hosts/$', list_hosts ),
+    url(r'^(\w+)/(\d+)/json', job_JSON_view ),
 )

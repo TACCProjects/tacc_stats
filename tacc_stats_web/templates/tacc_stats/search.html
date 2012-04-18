@@ -2,6 +2,7 @@
 <script src="{{ STATIC_URL }}jquery.min.js"></script>
 <script src="{{ STATIC_URL }}anytime.js"></script>
 <script src="{{ STATIC_URL }}jquery.dataTables.min.js"></script>
+<script src="{{ STATIC_URL }}ColVis.min.js"></script>
 <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}anytime.css" />
 <style type="text/css">
 <!--
@@ -62,6 +63,9 @@
                 <th> memory used </th>
                 <th> work open </th>
                 <th> irq </th>
+                {% for field in fields %}
+                    <th> {{ field }} </th>
+                {% endfor %}
             </tr>
         </thead>
         <tbody>
@@ -79,6 +83,10 @@
                    aoData.push( { "name" : "begin", "value" : "{{ begin }}" } );
                    aoData.push( { "name" : "end", "value" : "{{ end }}" } );
                 },
+                "aoColumnDefs" : [
+                    { "bVisible": false, "aTargets" : {{aTargets_str}} }
+                ],
+                "sDom" : 'C<"clear">lfrtip'
             } );
         } );
     </script>
