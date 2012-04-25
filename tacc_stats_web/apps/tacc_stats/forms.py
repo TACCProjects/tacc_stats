@@ -29,7 +29,8 @@ class CalendarWidget(forms.TextInput):
 class SearchForm(ModelForm):
     begin = forms.DateTimeField(widget=CalendarWidget)
     end = forms.DateTimeField(widget=CalendarWidget)
-    sort = forms.ChoiceField(choices=CHOICES)
+#    sort = forms.ChoiceField(choices=CHOICES)
+    host = forms.CharField(max_length=100)
 
     class Meta:
         model = Job

@@ -32,10 +32,21 @@ jsonify = json.encode
 
 from dojoserializer import serialize
 
-from tacc_stats.models import Job, COLORS, Node
+from tacc_stats.models import Job, COLORS, COLOR_LEGEND,  Node
 import job
 
 SHELVE_DIR = '/home/tacc_stats/sample-jobs/jobs'
+UNIT_DICT = {}
+print "Opening SHELVE"
+job_shelf = shelve.open(SHELVE_DIR)
+print "Shelve Opened"
+j = job_shelf['2253597']
+print "Job instatiated"
+for field, schema in j.schema.iteritems():
+    for entry, val in schema.keys.iteritems():
+        str ="%s_%s" % (field, entry)
+        UNIT_DICT[str] = val.unit
+print "DICT created"
 
 from forms import SearchForm
 
@@ -250,20 +261,20 @@ def search(request):
 
     fields  = []
     job = Job.objects.all()[0]
-#    for attr, val in job.__dict__.iteritems():
-#        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
-#            fields.append(attr)
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            fields.append(attr)
 
-    count = 7
-    aTargets_str = "[ ]"
-#    for field in fields:
-#        count += 1
-#        if not count - 7 == len(fields):
-#            aTargets_str += "%d, " % (count)
-#        else:
-#            aTargets_str += "%d] " % (count)
+    count = 8
+    aTargets_str = "[ 8, "
+    for field in fields:
+        count += 1
+        if not count - 8 == len(fields):
+            aTargets_str += "%d, " % (count)
+        else:
+            aTargets_str += "%d] " % (count)
 
-    return render(request, 'tacc_stats/search.html', {'aTargets_str' : aTargets_str, 'form' : form, 'COLORS' : COLORS, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value(), 'fields' : fields})
+    return render(request, 'tacc_stats/search.html', {'aTargets_str' : aTargets_str, 'form' : form, 'COLORS' : COLORS, 'COLOR_LEGEND' : COLOR_LEGEND, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value(), 'host' : form["host"].value(), 'fields' : fields})
 
 def list_hosts(request):
     """ Creates a list of hosts with their corresponding jobs """
@@ -345,7 +356,12 @@ def get_job(request, host, id):
 
 def data(request):
     """ Creates a page with data as defined by GET """
-    COLUMNS = ['acct_id', 'owner', 'nr_slots', 'runtime', 'begin', 'mem_MemUsed', 'llite_open_work', 'cpu_irq']
+    COLUMNS = ['acct_id', 'owner', 'nr_slots', 'runtime', 'begin', 'mem_MemUsed', 'llite_open_work', 'cpu_irq', 'color']
+
+    job = Job.objects.all()[0]
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            COLUMNS.append(attr)
 
     job_list = Job.objects.all()
     num_jobs = 0
@@ -362,6 +378,16 @@ def data(request):
         date = request.GET["end"]
         date = time.strptime(date, "%m/%d/%Y %I:%M")
         job_list = job_list.filter(end__lte = time.mktime(date))
+    if request.GET["host"] and not request.GET["host"] == 'None':
+        hostlist = request.GET["host"].split()
+
+        searchlist = []
+        for h in hostlist:
+            h = h.replace(',', '')
+            host = Node.objects.get(name = h)
+            searchlist.append(host)
+
+        job_list = job_list.filter(hosts__in = searchlist)
 
     if request.GET['iSortCol_0']:
         col = COLUMNS[int(request.GET['iSortCol_0'])]
@@ -392,11 +418,15 @@ def data(request):
                      job.start_time(),
                      convert_bytes(job.mem_MemUsed),
                      convert_bytes(job.llite_open_work),
-                     convert_bytes(job.cpu_irq) ]
-#        for attr, val in job.__dict__.iteritems():
-#            if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
-#                print attr
-#                job_data.append(val)
+                     convert_bytes(job.cpu_irq),
+                     job.color() ]
+        for attr, val in job.__dict__.iteritems():
+            if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+                if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'B':
+                    val = convert_bytes(val)
+                if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'ms':
+                    val = "%d ms" % (val)
+                job_data.append(val)
 
         aaData.append(job_data)
 
@@ -427,9 +457,29 @@ def convert_bytes(size):
                 if size > 1024:
                     size = size / 1024
                     unit = 'TB'
+                    if size > 1024:
+                        size = size / 1024
+                        unit = 'PB'
+                        if size > 1024:
+                            size = size / 1024
+                            unit = 'EB'
 
     return "%i %s" % (size, unit)
-            
+          
+def host_autocomplete(request):
+    """ Returns the list of hosts in a JSON format """
+    if request.GET["term"]:
+        hosts = Node.objects.filter(name__contains=request.GET["term"]).values_list('name', flat=True).order_by('name')[:10]
+    
+    return HttpResponse(jsonify(hosts), mimetype="application/json")
+ 
+def id_autocomplete(request):
+    """ Returns the list of id in a JSON format """
+    if request.GET["term"]:
+        hosts = Job.objects.filter(acct_id__contains=request.GET["term"]).values_list('acct_id', flat=True).order_by('acct_id')[:5]
+
+    return HttpResponse(jsonify(hosts), mimetype="application/json")
+ 
 def job_JSON_view(request, host, id):
     """ Forms a JSON object from a job id """
     t0 = time.clock()

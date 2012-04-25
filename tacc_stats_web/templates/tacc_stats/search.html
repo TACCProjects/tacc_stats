@@ -3,10 +3,12 @@
 <script src="{{ STATIC_URL }}anytime.js"></script>
 <script src="{{ STATIC_URL }}jquery.dataTables.min.js"></script>
 <script src="{{ STATIC_URL }}ColVis.min.js"></script>
+<script src="{{ STATIC_URL }}jquery-ui-1.8.19.custom.min.js"></script>
 <link rel="stylesheet" type="text/css" href="{{ STATIC_URL }}anytime.css" />
 <style type="text/css">
 <!--
 @import url("{{ STATIC_URL }}jquery.dataTables.css");
+@import url("{{ STATIC_URL }}jquery-ui-1.8.19.custom.css");
 -->
 </style>
 <script>
@@ -17,6 +19,54 @@
         var bVis = oTable.fnSettings().aoColumns[iCol].bVisible;
         oTable.fnSetColumnVis( iCol, bVis ? false : true);
     }
+  
+    
+
+    $(function() {
+        function split( val ) {
+            return val.split( /,\s*/ );
+        }
+        function extractLast ( term ) {
+            return split( term ).pop();
+        }       
+ 
+        $( "#id_host" )
+            // don't navigate away from the field on tab when selecting an item
+            .bind( "keydown", function( event ) {
+                if ( event.keyCode === $.ui.keyCode.TAB && $( this ).data( "autocomplete" ).menu.active ) {
+                    event.preventDefault();
+                }
+            })
+            .autocomplete({
+                source: function( request, response ) {
+                    $.getJSON( "/tacc_stats/host_autocomplete", {
+                        term: extractLast( request.term )
+                    }, response );
+                },
+                search: function() {
+                    // custom minLength
+                    var term = extractLast( this.value );
+                    if ( term.length < 2 ) {
+                        return false;
+                    }
+                },
+                focus: function() {
+                    // prevent value inserted on focus
+                    return false;
+                },
+                select: function( event, ui ) {
+                    var terms = split( this.value );
+                    // remove the current input
+                    terms.pop();
+                    // add selected item
+                    terms.push( ui.item.value );
+                    terms.push( "" );
+                    this.value = terms.join( ", " );
+                    return false;
+                }
+            });
+
+    });
 </script>
 <title>Job Search Page</title> 
 </head>
@@ -39,11 +89,13 @@
     <table id="hor-minimalist-a" border ="1" cellpadding="5">
         <tr><th> Color Legend <th></tr>
         {% for key, value in COLORS.items %}
-            <tr style="{{value}}">
+            <tr style="background-color: {{value}}">
                 <td>{{ key }}</td>
-		<td><br></td>
+                {% for k, v in COLOR_LEGEND.items %}
+		    {% if k == key %}<td> {{v}} </td> {% endif %}
+                {% endfor %}
             </tr>
-         {% endfor %}
+        {% endfor %}
     </table>
 {% endif %}
 </div>
@@ -63,6 +115,7 @@
                 <th> memory used </th>
                 <th> work open </th>
                 <th> irq </th>
+                <th> color </th>  
                 {% for field in fields %}
                     <th> {{ field }} </th>
                 {% endfor %}
@@ -82,11 +135,19 @@
                    aoData.push( { "name" : "owner", "value" : "{{ owner }}" } );
                    aoData.push( { "name" : "begin", "value" : "{{ begin }}" } );
                    aoData.push( { "name" : "end", "value" : "{{ end }}" } );
+                   aoData.push( { "name" : "host", "value" : "{{ host }}" } );
                 },
                 "aoColumnDefs" : [
                     { "bVisible": false, "aTargets" : {{aTargets_str}} }
                 ],
-                "sDom" : 'C<"clear">lfrtip'
+                "sDom" : 'C<"clear">lfrtip',
+                "oColVis" : {
+                    "aiExclude" : [8]
+                },
+                "fnRowCallback" : function (nRow, aData, iDisplayIndex, iDisplayIndexFull)     {
+                    $('td', nRow).closest('tr').css('background', aData[8]);
+                    return nRow;
+               } 
             } );
         } );
     </script>
