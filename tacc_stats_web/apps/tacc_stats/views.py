@@ -40,7 +40,7 @@ UNIT_DICT = {}
 print "Opening SHELVE"
 job_shelf = shelve.open(SHELVE_DIR)
 print "Shelve Opened"
-j = job_shelf['2253597']
+j = job_shelf['2256038']
 print "Job instatiated"
 for field, schema in j.schema.iteritems():
     for entry, val in schema.keys.iteritems():
@@ -352,7 +352,18 @@ def render_json(request):
 def get_job(request, host, id):
     """ Creates a detailed view of a specific job """
     job = Job.objects.get(acct_id = id)
-    return render_to_response('tacc_stats/job_detail.html', {'job' : job})
+    attr_dict = {}
+
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'B':
+                val = convert_bytes(val)
+            if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'ms':
+                val = convert_seconds(val)
+
+            attr_dict[attr] = val
+
+    return render_to_response('tacc_stats/job_detail.html', {'job' : job, 'attr_dict' : attr_dict})
 
 def data(request):
     """ Creates a page with data as defined by GET """
@@ -425,7 +436,7 @@ def data(request):
                 if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'B':
                     val = convert_bytes(val)
                 if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'ms':
-                    val = "%d ms" % (val)
+                    val =  convert_seconds(val)
                 job_data.append(val)
 
         aaData.append(job_data)
@@ -440,6 +451,22 @@ def data(request):
     json_data = jsonify(output)
 
     return HttpResponse(json_data, mimetype="application/json")
+
+def convert_seconds(time):
+    """ Convert Seconds """
+    unit = 'ms'
+
+    if time > 1000:
+        time = time / 1000
+        unit = 's'
+        if time > 60:
+            time = time / 60
+            unit = 'min'
+            if time > 60:
+                time = time / 60
+                unit = 'hrs'
+
+    return "%i %s"  % (time, unit)
 
 def convert_bytes(size):
     """ Convert bytes """
