@@ -1,0 +1,39 @@
+<html>
+<head>
+<script type="text/javascript">
+    function createPlot() {
+        var xfield = document.getElementById('id_xfield').value;
+        var yfield = document.getElementById('id_yfield').value;
+
+        var img = document.createElement("IMG");
+        img.src = "/tacc_stats/scatter/" + xfield +"/" + yfield + "/";
+        
+        var node = document.getElementById("scatterplot");
+ 
+        if (node.hasChildNodes()) {
+            var child = node.lastChild;
+            node.replaceChild(img, child);
+        } else {
+            node.appendChild(img);
+        }
+        return;
+    }
+</script>
+</head>
+
+<body>
+<form>
+    X Field: <select name="xfield" id="id_xfield" onchange="createPlot()" >
+    {% for field in fields %}
+        <option value="{{field}}">{{field}}</option>
+    {% endfor %}
+    </select></br>
+    Y Field: <select name="yfield" id="id_yfield" onchange="createPlot()" >
+    {% for field in fields %}
+        <option value="{{field}}">{{field}}</option>
+    {% endfor %}
+    </select>
+</form>
+<div id="scatterplot"></div>
+</body>
+</html>

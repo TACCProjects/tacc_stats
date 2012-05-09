@@ -1,6 +1,3 @@
-import sys
-sys.path.append('/home/dmalone/other/src/backup/monitor')
-
 from django.http import HttpResponse
 from django.shortcuts import render_to_response
 from django.views.decorators.csrf import csrf_protect
@@ -11,6 +8,9 @@ from django.db import models
 from django.utils.simplejson import dumps, loads, JSONEncoder
 
 import datetime
+
+from sklearn.cluster import MiniBatchKMeans, KMeans
+from sklearn.metrics.pairwise import euclidean_distances
 
 import matplotlib
 matplotlib.use('Agg')
@@ -365,6 +365,16 @@ def get_job(request, host, id):
 
     return render_to_response('tacc_stats/job_detail.html', {'job' : job, 'attr_dict' : attr_dict})
 
+def scatterplot_page(request):
+    """ Creates a page to display a scatterplot on given job data """
+    fields  = []
+    job = Job.objects.all()[0]
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            fields.append(attr)
+
+    return render_to_response('tacc_stats/scatter.html', {'fields' : fields})
+
 def data(request):
     """ Creates a page with data as defined by GET """
     COLUMNS = ['acct_id', 'owner', 'nr_slots', 'runtime', 'begin', 'mem_MemUsed', 'llite_open_work', 'cpu_irq', 'color']
@@ -492,6 +502,42 @@ def convert_bytes(size):
                             unit = 'EB'
 
     return "%i %s" % (size, unit)
+
+def create_scatterplot(request, xfield, yfield):
+    """ Returns a scatterplot of jobs """
+    NUM_CLUSTERS = 3
+    colors = ['#4EACC5', '#FF9C34', '#90EE90']
+    jobs = Job.objects.all().values_list(xfield, yfield)
+    jobs_arr = NP.array(jobs)   
+
+    km = MiniBatchKMeans(init='k-means++', k=NUM_CLUSTERS, n_init=10, batch_size=45, max_no_improvement=10)
+    log_jobs_arr = NP.log10(jobs_arr)
+    low_vals = log_jobs_arr < 0
+    log_jobs_arr[low_vals] = 0
+    km.fit(log_jobs_arr)
+
+    centers = km.cluster_centers_
+    labels = km.labels_
+
+    fig = PLT.figure()
+    ax = fig.add_subplot(1,1,1)
+
+    for k, col in zip(range(NUM_CLUSTERS), colors):
+        members = labels == k
+        center = centers[k]
+        ax.plot(jobs_arr[members, 0], jobs_arr[members, 1], 'w', markerfacecolor=col, marker='.', markeredgecolor=col)
+        ax.plot(math.pow(10, center[0]), math.pow(10, center[1]), 'o', markerfacecolor=col, markeredgecolor='k', markersize=10)
+
+
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    ax.set_title('KMeans of %s vs. %s' % (yfield, xfield))
+    ax.set_xlabel('Log of %s' % (xfield))
+    ax.set_ylabel('Log of %s' % (yfield))
+    f = PLT.gcf()
+    
+
+    return figure_to_response(f)
           
 def host_autocomplete(request):
     """ Returns the list of hosts in a JSON format """
