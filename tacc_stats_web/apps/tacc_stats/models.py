@@ -67,6 +67,11 @@ class Job(models.Model):
     pe = models.CharField(max_length=8, null=True)
     failed = models.BooleanField()
     exit_status = models.IntegerField(null=True)
+    
+    avg_flops = models.FloatField(null=True)
+    flops_25 = models.IntegerField(null=True)
+    flops_50 = models.IntegerField(null=True)
+    flops_75 = models.IntegerField(null=True)
 
     amd64_pmc_CTL0 = models.BigIntegerField(null=True)
     amd64_pmc_CTL1 = models.BigIntegerField(null=True)

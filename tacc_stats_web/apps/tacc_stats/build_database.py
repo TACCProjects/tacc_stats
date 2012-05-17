@@ -3,7 +3,7 @@
 
 Synopsis
 --------
-    build_database.py <command> [command args]
+    build_database.py [system_name] [archive_path]
 
 Description
 -----------
@@ -29,27 +29,16 @@ Commands
        Clears the database to be cleaned for next usage
 
 """
-import sys
-print sys.path
-
 from django.conf import settings
 from django.core.management import call_command
-from django.db.utils import DatabaseError
-from django.db import transaction
 import os
 import shelve
+import sys
 
 sys.path.insert(0, '/home/aterrel/workspace/tacc_stats/monitor')
 
 from tacc_stats.models import Node, System, User
 from tacc_stats.models import Job as tsm_Job
-import job
-
-import numpy as NP
-
-FLOPS_25 = 13.70
-FLOPS_50 = 38.62
-FLOPS_75 = 65.82
 
 def get_job_shelf(archive_path):
     """Returns the on-disk python job monitor database"""
@@ -101,52 +90,22 @@ def add_Job(system, a_job):
     if system.job_set.filter(acct_id=int(a_job.id)):
         print "Job %s already exists" % a_job.id
         return
-    owner = get_user(a_job.acct['owner'], system)
+    owner = get_user(a_job.acct['account'], system)
 
-    flops = NP.zeros(a_job.times.size)
-
-    for a_host in a_job.hosts:
-        a_host = a_job.hosts[a_host]
-        for k,v in a_host.interpret_amd64_pmc_cpu().iteritems():
-            if 'SSEFLOPS' in v:
-                flops += v['SSEFLOPS']
-
-    total_flops = NP.diff(flops) / NP.diff(a_job.times) / 10 ** 9
-    avg_flops = total_flops.mean()
-    flops_25 = NP.count_nonzero([total_flops < FLOPS_25])*100 /total_flops.size
-    flops_50 = NP.count_nonzero([total_flops < FLOPS_50])*100 /total_flops.size
-    flops_75 = NP.count_nonzero([total_flops < FLOPS_75])*100 /total_flops.size
-
-    
-    #nr_bad_hosts = len(filter(lambda h: len(h.times) < 2,
-    #                          a_job.hosts.values()))
     job_dict = {
         'system': system,
         'acct_id': a_job.id,
         'owner': owner,
-        'queue': a_job.acct['queue'],
-        'queue_wait_time': a_job.start_time - a_job.acct['submission_time'],
         'begin': a_job.start_time,
         'end': a_job.end_time,
-        #'nr_bad_hots': nr_bad_hosts,
         'nr_slots': a_job.acct['slots'],
         'pe': a_job.acct['granted_pe'],
         'failed': a_job.acct['failed'],
         'exit_status': a_job.acct['exit_status'],
-        'avg_flops': avg_flops,
-        'flops_25': flops_25,
-        'flops_50': flops_50,
-        'flops_75': flops_75,
     }
-    job_dict.update(job.JobAggregator(a_job).stats)
     #newJob.nr_hosts = len(a_job.hosts)
-    try:
-        newJob = tsm_Job(**job_dict)
-        newJob.save()
-    except DatabaseError:
-        print "Error on job,", a_job.id
-        transaction.rollback()
-        return
+    newJob = tsm_Job(**job_dict)
+    newJob.save()
     hosts = map(lambda node: get_node(system, node), a_job.hosts.keys())
     newJob.hosts = hosts
 

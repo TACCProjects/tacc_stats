@@ -196,15 +196,22 @@ def create_heatmap(request, job_id, trait):
              flops -- intenisty is correlated to the number of floating point
                       operations performed by the host
     """
-    job_shelf = shelve.open(SHELVE_DIR)
+    print "METHOD STARTED"
+    if not ( job_id in job_shelf.keys() ):
+        return
+
 
     job = job_shelf[job_id]
+
+    print "JOB FOUND"
 
     hosts = job.hosts.keys()
             
     n = 1 
     num_hosts = len(job.hosts)
     PLT.subplots_adjust(hspace = 0)
+
+    print "KEYS FOUND"
 
     if (trait == 'memory'):
         PLT.suptitle('Memory Used By Host', fontsize = 12)
@@ -373,6 +380,8 @@ def scatterplot_page(request):
         if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
             fields.append(attr)
 
+    fields.sort()
+
     return render_to_response('tacc_stats/scatter.html', {'fields' : fields})
 
 def data(request):
@@ -503,7 +512,7 @@ def convert_bytes(size):
 
     return "%i %s" % (size, unit)
 
-def create_scatterplot(request, xfield, yfield):
+def create_scatterplot(request, xfield, xtype, yfield, ytype):
     """ Returns a scatterplot of jobs """
     NUM_CLUSTERS = 3
     colors = ['#4EACC5', '#FF9C34', '#90EE90']
@@ -511,6 +520,8 @@ def create_scatterplot(request, xfield, yfield):
     jobs_arr = NP.array(jobs)   
 
     km = MiniBatchKMeans(init='k-means++', k=NUM_CLUSTERS, n_init=10, batch_size=45, max_no_improvement=10)
+    
+
     log_jobs_arr = NP.log10(jobs_arr)
     low_vals = log_jobs_arr < 0
     log_jobs_arr[low_vals] = 0
@@ -528,12 +539,17 @@ def create_scatterplot(request, xfield, yfield):
         ax.plot(jobs_arr[members, 0], jobs_arr[members, 1], 'w', markerfacecolor=col, marker='.', markeredgecolor=col)
         ax.plot(math.pow(10, center[0]), math.pow(10, center[1]), 'o', markerfacecolor=col, markeredgecolor='k', markersize=10)
 
-
-    ax.set_yscale('log')
-    ax.set_xscale('log')
     ax.set_title('KMeans of %s vs. %s' % (yfield, xfield))
-    ax.set_xlabel('Log of %s' % (xfield))
-    ax.set_ylabel('Log of %s' % (yfield))
+    ax.set_xlabel('%s' % (xfield))
+    ax.set_ylabel('%s' % (yfield))
+
+    if ytype == 'log':
+        ax.set_yscale('log')
+        ax.set_ylabel('Log of %s' % (yfield))
+    if xtype == 'log':
+        ax.set_xscale('log')
+        ax.set_xlabel('Log of %s' % (xfield))
+
     f = PLT.gcf()
     
 

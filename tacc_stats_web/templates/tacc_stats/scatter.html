@@ -4,9 +4,11 @@
     function createPlot() {
         var xfield = document.getElementById('id_xfield').value;
         var yfield = document.getElementById('id_yfield').value;
+        var xtype = document.getElementById('id_xtype').value;
+        var ytype = document.getElementById('id_ytype').value;
 
         var img = document.createElement("IMG");
-        img.src = "/tacc_stats/scatter/" + xfield +"/" + yfield + "/";
+        img.src = "/tacc_stats/scatter/" + xfield +"/" + xtype + "/" + yfield + "/" + ytype + "/";
         
         var node = document.getElementById("scatterplot");
  
@@ -27,11 +29,17 @@
     {% for field in fields %}
         <option value="{{field}}">{{field}}</option>
     {% endfor %}
+    </select><select name="xtype" id="id_xtype" onchange="createPlot()" >
+        <option value="log">log</option>
+        <option value="lin">lin</option>
     </select></br>
     Y Field: <select name="yfield" id="id_yfield" onchange="createPlot()" >
     {% for field in fields %}
         <option value="{{field}}">{{field}}</option>
     {% endfor %}
+    </select><select name="ytype" id="id_ytype" onchange="createPlot()" >
+        <option value="log">log</option>
+        <option value="lin">lin</option>
     </select>
 </form>
 <div id="scatterplot"></div>
