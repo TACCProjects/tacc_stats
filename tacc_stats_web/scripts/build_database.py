@@ -47,9 +47,13 @@ import job
 
 import numpy as NP
 
-FLOPS_25 = 13.70
-FLOPS_50 = 38.62
-FLOPS_75 = 65.82
+FLOPS_25 = 2.74715
+FLOPS_50 = 4.98561
+FLOPS_75 = 8.52878
+
+MEM_25 = 3560026112.0
+MEM_50 = 5506691072.0
+MEM_75 = 9640591360.0
 
 def get_job_shelf(archive_path):
     """Returns the on-disk python job monitor database"""
@@ -104,6 +108,8 @@ def add_Job(system, a_job):
     owner = get_user(a_job.acct['owner'], system)
 
     flops = NP.zeros(a_job.times.size)
+    total_flops = NP.array([])
+    mem_total_per_host = NP.array([])
 
     for a_host in a_job.hosts:
         a_host = a_job.hosts[a_host]
@@ -111,13 +117,29 @@ def add_Job(system, a_job):
             if 'SSEFLOPS' in v:
                 flops += v['SSEFLOPS']
 
-    total_flops = NP.diff(flops) / NP.diff(a_job.times) / 10 ** 9
-    avg_flops = total_flops.mean()
+        index = a_job.schema['mem'].keys['MemUsed'].index
+        
+        mem_total = NP.zeros(a_job.times.size)
+
+        for v in a_host.stats['mem']:
+            mem_total += a_host.stats['mem'][v][:,2]
+
+        mem_total_per_host = NP.append(mem_total, mem_total_per_host)
+
+        total_flops = NP.append(total_flops, NP.diff(flops) / NP.diff(a_job.times) / 10 ** 9)
+        avg_flops = total_flops.mean()
+
+
     flops_25 = NP.count_nonzero([total_flops < FLOPS_25])*100 /total_flops.size
     flops_50 = NP.count_nonzero([total_flops < FLOPS_50])*100 /total_flops.size
     flops_75 = NP.count_nonzero([total_flops < FLOPS_75])*100 /total_flops.size
 
-    
+    mem_25 = NP.count_nonzero([mem_total_per_host < MEM_25])*100 / mem_total_per_host.size
+    mem_50 = NP.count_nonzero([mem_total_per_host < MEM_50])*100 / mem_total_per_host.size
+    mem_75 = NP.count_nonzero([mem_total_per_host < MEM_75])*100 / mem_total_per_host.size
+ 
+
+ 
     #nr_bad_hosts = len(filter(lambda h: len(h.times) < 2,
     #                          a_job.hosts.values()))
     job_dict = {
@@ -137,6 +159,9 @@ def add_Job(system, a_job):
         'flops_25': flops_25,
         'flops_50': flops_50,
         'flops_75': flops_75,
+        'mem_25': mem_25,
+        'mem_50': mem_50,
+        'mem_75': mem_75,
     }
     job_dict.update(job.JobAggregator(a_job).stats)
     #newJob.nr_hosts = len(a_job.hosts)

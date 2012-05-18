@@ -73,6 +73,10 @@ class Job(models.Model):
     flops_50 = models.IntegerField(null=True)
     flops_75 = models.IntegerField(null=True)
 
+    mem_25 = models.IntegerField(null=True)
+    mem_50 = models.IntegerField(null=True)
+    mem_75 = models.IntegerField(null=True)
+
     amd64_pmc_CTL0 = models.BigIntegerField(null=True)
     amd64_pmc_CTL1 = models.BigIntegerField(null=True)
     amd64_pmc_CTL2 = models.BigIntegerField(null=True)
