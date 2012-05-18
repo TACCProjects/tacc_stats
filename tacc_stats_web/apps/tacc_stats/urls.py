@@ -1,7 +1,7 @@
 from django.conf.urls.defaults import patterns, url
 from django.views.generic import DetailView, ListView
 from tacc_stats.models import Job
-from tacc_stats.views import index, job_memused_hist, job_timespent_hist, create_heatmap, search, JobListView, render_json, get_job, data, list_hosts
+from tacc_stats.views import index, job_memused_hist, job_timespent_hist, create_heatmap, search, JobListView, render_json, get_job, data, list_hosts, job_JSON_view, host_autocomplete, id_autocomplete, create_scatterplot, scatterplot_page
 
 urlpatterns = patterns('',
     url(r'^$', index),
@@ -19,7 +19,12 @@ urlpatterns = patterns('',
     url(r'^job_flops_heatmap/(\d+)/$', create_heatmap, {'trait' : 'flops'}),
     url(r'^search/$', search ),
     url(r'^render/jobs/$', render_json),
-    url(r'^(\w+)/(\d+)/$', get_job ),
+    url(r'^(\w+).tacc.utexas.edu/(\d+)/$', get_job ),
     url(r'^data/$', data ),
     url(r'^hosts/$', list_hosts ),
+    url(r'^(\w+)/(\d+)/json', job_JSON_view ),
+    url(r'^host_autocomplete', host_autocomplete ),
+    url(r'^id_autocomplete', id_autocomplete ),
+    url(r'^scatter/(\w+)/(\w+)/(\w+)/(\w+)', create_scatterplot ),
+    url(r'^plot/$', scatterplot_page ),
 )

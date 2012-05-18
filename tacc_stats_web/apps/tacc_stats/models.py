@@ -3,13 +3,23 @@
 from django.db import models
 import time
 import math
+import datetime
+import dateutil
 
 COLORS = { 
-    'Normal' : "background-color: rgba(0%, 0%, 100%, .2);",
-    'High Files Open' : "background-color: rgba(100%, 0%, 0%, .2);",
-    'High Memory Used' : "background-color: rgba(80%, 30%, 0%, .2)",
-    'High Runtime' : "background-color: rgba(0%, 100%, 0%, .2)",
-    'High Idle' : "background-color: rgba(50%, 0%, 50%, .2)"
+    'Normal' : "rgba(0%, 0%, 100%, .2)",
+    'High Files Open' : "rgba(100%, 0%, 0%, .2)",
+    'High Memory Used' : "rgba(80%, 30%, 0%, .2)",
+    'High Runtime' : "rgba(0%, 100%, 0%, .2)",
+    'High Idle' : "rgba(50%, 0%, 50%, .2)"
+}
+
+COLOR_LEGEND = {
+    'Normal' : "Default Job Color",
+    'High Files Open' : "Greater than 30000 files opened",
+    'High Memory Used' : "Greater than 30 GB Used",
+    'High Runtime' : "Greater than 10 Hour",
+    'High Idle' : "Greater than 10% Idle"
 }
 
 class System(models.Model):
@@ -57,6 +67,15 @@ class Job(models.Model):
     pe = models.CharField(max_length=8, null=True)
     failed = models.BooleanField()
     exit_status = models.IntegerField(null=True)
+    
+    avg_flops = models.FloatField(null=True)
+    flops_25 = models.IntegerField(null=True)
+    flops_50 = models.IntegerField(null=True)
+    flops_75 = models.IntegerField(null=True)
+
+    mem_25 = models.IntegerField(null=True)
+    mem_50 = models.IntegerField(null=True)
+    mem_75 = models.IntegerField(null=True)
 
     amd64_pmc_CTL0 = models.BigIntegerField(null=True)
     amd64_pmc_CTL1 = models.BigIntegerField(null=True)
@@ -269,17 +288,22 @@ class Job(models.Model):
         Returns the color of the job row as a css style field
         """
         ret_val = COLORS['Normal']
-        if self.llite_open_work > 3000:
+        if self.llite_open_work > 30000:
             ret_val = COLORS['High Files Open']
         elif self.mem_MemUsed > 30*2**30:
             ret_val = COLORS['High Memory Used']
-        elif self.runtime > 3000:
+        elif self.runtime > 36000:
             ret_val = COLORS['High Runtime']
+        elif self.cpu_idle * 10 > self.cpu_user:
+            ret_val = COLORS['High Idle']
         return ret_val
 
     def timespent(self):
         """ Returns the runtime of the job in a readable format """
-        return time.strftime('%H:%M:%S', time.gmtime(self.runtime))
+        d1 = datetime.datetime.fromtimestamp(self.begin)
+        d2 = datetime.datetime.fromtimestamp(self.end)
+        rd = dateutil.relativedelta.relativedelta(d2, d1)
+        return "%d days, %d hours, %d min %d sec" % (rd.days, rd.hours, rd.minutes, rd.seconds)
 
     def start_time(self):
         """ Returns the start time of a the job in a readable format """
@@ -294,6 +318,10 @@ class Job(models.Model):
         hosts = []
         hosts.append(host.name for host in self.hosts.all())
         return hosts
+
+    def attrs(self):
+        for field in self._meta.fields:
+            yield field.name, getattr(self, field.name)
 
 class Monitor(models.Model):
     kind = models.CharField(max_length=32)

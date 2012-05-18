@@ -1,0 +1,57 @@
+<html>
+<head>
+    <title>TACC Stats Web: Host list</title>
+    <script src="{{ STATIC_URL }}sorttable.js"></script>
+    <style type="text/css">
+    <!--
+    @import url("{{ STATIC_URL }}style.css");
+    -->
+    </style>
+</head>
+<body>
+{% if hosts %}
+    {% for host in hosts %}
+        <a href="/tacc_stats/hosts/?p={{ page }}&host={{ host.name }}">{{ host }}</a><br>
+    {% endfor %}
+{% endif %}
+<div style="height:5%;clear:both;">
+{% if pages %}
+    [
+    {% for i in pages %}
+         {% if i == page %}
+             <a href="/tacc_stats/hosts?p={{ i }}{{ query_string }}&host={{ hostname }}"><b>{{ i }}</b></a>
+         {% else %}
+             {% if i == '...' %}
+                 {{ i }}
+             {% else %}
+                 <a href="/tacc_stats/hosts?p={{ i }}&host={{ hostname }}{{ query_string }}">{{ i }}</a>
+             {% endif %}
+         {% endif %}
+    {% endfor %}
+    ]
+{% endif %}
+</div>
+{% if jobs_by_host %}
+    <b>{{ hostname }}</b>
+        <table border="1" cellpadding="5" class="sortable">
+            <tr><th> ID </th><th> owner </th><th> hosts </th>
+            <th> time spent </th><th> begin </th><th> memory used </th>
+            <th> work open </th><th> irq </th></tr> 
+        {% for job in jobs_by_host %}
+            <tr style="{{job.color}}">
+                <td height="{{ job.height }}"><a href="/tacc_stats/{{ job.system }}/{{ job.acct_id }}/">{{ job.acct_id }}</a>
+                <td>{{ job.get_owner }}</td>
+                <td align=right>{{ job.nr_hosts }}</td>
+                <td align=right>{{ job.timespent }}</td>
+                <td align=right>{{ job.start_time }}</td>
+                <td align=right>{{ job.mem_MemUsed }}</td>
+                <td align=right>{{ job.llite_open_work }}</td>
+                <td align=right>{{ job.cpu_irq }}</td>
+            </tr>
+        {% endfor %}
+{% else %}
+    <p>No jobs are available.</p>
+{% endif %}
+</div>
+</body>
+</html>

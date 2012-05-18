@@ -1,13 +1,16 @@
-import sys
-sys.path.append('/home/dmalone/other/src/backup/monitor')
-
 from django.http import HttpResponse
 from django.shortcuts import render_to_response
 from django.views.decorators.csrf import csrf_protect
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
 from django.db.models import Q
+from django.db import models
 from django.utils.simplejson import dumps, loads, JSONEncoder
+
+import datetime
+
+from sklearn.cluster import MiniBatchKMeans, KMeans
+from sklearn.metrics.pairwise import euclidean_distances
 
 import matplotlib
 matplotlib.use('Agg')
@@ -29,10 +32,21 @@ jsonify = json.encode
 
 from dojoserializer import serialize
 
-from tacc_stats.models import Job, COLORS, Node
+from tacc_stats.models import Job, COLORS, COLOR_LEGEND,  Node
 import job
 
 SHELVE_DIR = '/home/tacc_stats/sample-jobs/jobs'
+UNIT_DICT = {}
+print "Opening SHELVE"
+job_shelf = shelve.open(SHELVE_DIR)
+print "Shelve Opened"
+j = job_shelf['2256038']
+print "Job instatiated"
+for field, schema in j.schema.iteritems():
+    for entry, val in schema.keys.iteritems():
+        str ="%s_%s" % (field, entry)
+        UNIT_DICT[str] = val.unit
+print "DICT created"
 
 from forms import SearchForm
 
@@ -182,15 +196,22 @@ def create_heatmap(request, job_id, trait):
              flops -- intenisty is correlated to the number of floating point
                       operations performed by the host
     """
-    job_shelf = shelve.open(SHELVE_DIR)
+    print "METHOD STARTED"
+    if not ( job_id in job_shelf.keys() ):
+        return
+
 
     job = job_shelf[job_id]
+
+    print "JOB FOUND"
 
     hosts = job.hosts.keys()
             
     n = 1 
     num_hosts = len(job.hosts)
     PLT.subplots_adjust(hspace = 0)
+
+    print "KEYS FOUND"
 
     if (trait == 'memory'):
         PLT.suptitle('Memory Used By Host', fontsize = 12)
@@ -239,66 +260,28 @@ def search(request):
     Creates a search form that can be used to navigate through the list 
     of jobs.
     """
-    PAGE_LENGTH = 20
-    query_string = ""
-
     if request.method == 'POST':
-        print request.POST
-
         form = SearchForm(request.POST)
-        query = request.POST.copy()
-
-        if query.get('csrfmiddlewaretoken'):
-            query.__delitem__('csrfmiddlewaretoken')
-        
-        query_string = "&"
-	query_string += query.urlencode()
-
-        job_list = Job.objects.all()
 
     else:
         form = SearchForm(request.GET)
-        query = request.GET.copy()
 
-        if query.get('p'):
-            query.__delitem__('p')
-        if query.get('csrfmiddlewaretoken'):
-            query.__delitem__('csrfmiddlewaretoken')
+    fields  = []
+    job = Job.objects.all()[0]
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            fields.append(attr)
 
-        query_string = '&'
-        query_string += query.urlencode()
+    count = 8
+    aTargets_str = "[ 8, "
+    for field in fields:
+        count += 1
+        if not count - 8 == len(fields):
+            aTargets_str += "%d, " % (count)
+        else:
+            aTargets_str += "%d] " % (count)
 
-        job_list = Job.objects.all()
-
-    if form["acct_id"].value():
-        job_list = job_list.filter(acct_id = form["acct_id"].value())
-    if form["owner"].value():
-        job_list = job_list.filter(owner = form["owner"].value())
-    if form["begin"].value():
-        job_list = job_list.filter(begin__gte = form["begin"].value())
-    if form["end"].value():
-        job_list = job_list.filter(end__lte = form["end"].value())
-#   if form["hosts"].value():
-#       job_list = job_list.filter(hosts__in=form["hosts"].value())
-        
-    num_jobs = job_list.count()
-
-    start = 0
-    page = 0
-    end = PAGE_LENGTH
-
-    if request.GET.get('p'):
-        page = int(request.GET.get('p'))
-        start = int(request.GET.get('p')) * PAGE_LENGTH
-        end = start + PAGE_LENGTH
-
-    job_list = job_list[start : end]
-
-    num_pages = int(math.ceil(num_jobs / PAGE_LENGTH))
-
-    pages = create_pagelist(num_pages, PAGE_LENGTH, page)
-
-    return render(request, 'tacc_stats/search.html', {'form' : form, 'job_list' : job_list, 'COLORS' : COLORS, 'pages' : pages, 'page' : page, 'query_string' : query_string})
+    return render(request, 'tacc_stats/search.html', {'aTargets_str' : aTargets_str, 'form' : form, 'COLORS' : COLORS, 'COLOR_LEGEND' : COLOR_LEGEND, 'acct_id' : form["acct_id"].value(), 'owner' : form["owner"].value(), 'begin' : form["begin"].value(), 'end' : form["end"].value(), 'host' : form["host"].value(), 'fields' : fields})
 
 def list_hosts(request):
     """ Creates a list of hosts with their corresponding jobs """
@@ -310,22 +293,32 @@ def list_hosts(request):
     start = 0
     page = 0
     end = PAGE_LENGTH
+    hostname = ""
 
     if request.GET.get('p'):
         page = int(request.GET.get('p'))
         start = int(request.GET.get('p')) * PAGE_LENGTH
         end = start + PAGE_LENGTH
 
+    if request.GET.get('host'):
+        hostname = request.GET.get('host')
+
     hosts = Node.objects.all().order_by('name')[start:end]
 
     pages = create_pagelist(num_pages, PAGE_LENGTH, page)
 
-    jobs_by_host = {}
-    for host in hosts:
-        host_jobs = Job.objects.filter(hosts = host).order_by('begin')
-        jobs_by_host[host.name] = host_jobs
+    host = Node.objects.filter(name = hostname)
 
-    return render_to_response('tacc_stats/hosts.html', {'hosts' : hosts, 'jobs_by_host' : jobs_by_host, 'pages' : pages, 'page' : page })
+    jobs_by_host = Job.objects.filter(hosts = host).order_by('-begin')
+
+#    jobs_by_host = {}
+#    for host in hosts:
+#       host_jobs = Job.objects.filter(hosts = hostname).order_by('begin')
+#        jobs_by_host[host.name] = host_jobs
+
+    print hostname
+
+    return render_to_response('tacc_stats/hosts.html', {'hosts' : hosts, 'hostname': hostname, 'jobs_by_host' : jobs_by_host, 'pages' : pages, 'page' : page })
 
 def create_pagelist(num_pages, PAGE_LENGTH, page):
     """ Creates a formatted list of pages which can be hyperlinked """
@@ -366,21 +359,271 @@ def render_json(request):
 def get_job(request, host, id):
     """ Creates a detailed view of a specific job """
     job = Job.objects.get(acct_id = id)
-    return render_to_response('tacc_stats/job_detail.html', {'job' : job})
+    attr_dict = {}
+
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'B':
+                val = convert_bytes(val)
+            if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'ms':
+                val = convert_seconds(val)
+
+            attr_dict[attr] = val
+
+    return render_to_response('tacc_stats/job_detail.html', {'job' : job, 'attr_dict' : attr_dict})
+
+def scatterplot_page(request):
+    """ Creates a page to display a scatterplot on given job data """
+    fields  = []
+    job = Job.objects.all()[0]
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            fields.append(attr)
+
+    fields.sort()
+
+    return render_to_response('tacc_stats/scatter.html', {'fields' : fields})
 
 def data(request):
     """ Creates a page with data as defined by GET """
-    search = request.GET
-    start = int(search.get('start'))
-    end = start + int(search.get('count'))
+    COLUMNS = ['acct_id', 'owner', 'nr_slots', 'runtime', 'begin', 'mem_MemUsed', 'llite_open_work', 'cpu_irq', 'color']
 
-    job_list = Job.objects.order_by('-begin')[start:end]
-  
-    num_jobs = Job.objects.count()
+    job = Job.objects.all()[0]
+    for attr, val in job.__dict__.iteritems():
+        if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+            COLUMNS.append(attr)
 
-    json_data = serialize(job_list)
+    job_list = Job.objects.all()
+    num_jobs = 0
+
+    if request.GET["acct_id"] and not request.GET["acct_id"] == 'None':
+        job_list = job_list.filter(acct_id = request.GET["acct_id"])
+    if request.GET["owner"] and not request.GET["owner"] == 'None':
+        job_list = job_list.filter(owner = request.GET["owner"])
+    if request.GET["begin"] and not request.GET["begin"] == 'None':
+        date = request.GET["begin"]
+        date = time.strptime(date, "%m/%d/%Y %I:%M")
+        job_list = job_list.filter(begin__gte = time.mktime(date))
+    if request.GET["end"] and not request.GET["end"] == 'None':
+        date = request.GET["end"]
+        date = time.strptime(date, "%m/%d/%Y %I:%M")
+        job_list = job_list.filter(end__lte = time.mktime(date))
+    if request.GET["host"] and not request.GET["host"] == 'None':
+        hostlist = request.GET["host"].split()
+
+        searchlist = []
+        for h in hostlist:
+            h = h.replace(',', '')
+            host = Node.objects.get(name = h)
+            searchlist.append(host)
+
+        job_list = job_list.filter(hosts__in = searchlist)
+
+    if request.GET['iSortCol_0']:
+        col = COLUMNS[int(request.GET['iSortCol_0'])]
+        if not col == 'runtime':
+            if request.GET['sSortDir_0'] == 'asc':
+                job_list = job_list.order_by(col)
+            else:
+                job_list = job_list.order_by('-' + col)
+        else:
+            if request.GET['sSortDir_0'] == 'asc':
+                job_list = job_list.extra(select={"diff": '"end" - "begin"'}, order_by = ['diff'])
+            else:
+                job_list = job_list.extra(select={"diff": '"end" - "begin"'}, order_by = ['-diff']) 
+
+    if request.GET['iDisplayStart'] and request.GET['iDisplayLength'] != '-1':  
+        start = int(request.GET['iDisplayStart'])
+        end = int(request.GET['iDisplayLength']) + start
+        num_jobs = job_list.count()
+        job_list = job_list[start:end]
+ 
+    aaData = []
+
+    for job in job_list:
+        job_data = [ "<a href='/tacc_stats/{job.system}/{job.acct_id}'>{job.acct_id}</a>".format(job=job),
+                     job.owner.__str__(),
+                     job.nr_hosts,
+                     job.timespent(),
+                     job.start_time(),
+                     convert_bytes(job.mem_MemUsed),
+                     convert_bytes(job.llite_open_work),
+                     convert_bytes(job.cpu_irq),
+                     job.color() ]
+        for attr, val in job.__dict__.iteritems():
+            if not attr == '_owner_cache' and not attr == '_system_cache' and not attr == '_state':
+                if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'B':
+                    val = convert_bytes(val)
+                if UNIT_DICT.__contains__(attr) and UNIT_DICT[attr] == 'ms':
+                    val =  convert_seconds(val)
+                job_data.append(val)
+
+        aaData.append(job_data)
+
+    output = {
+                  "sEcho" : int(request.GET['sEcho']),
+                  "iTotalRecords" : num_jobs,
+                  "iTotalDisplayRecords" : num_jobs,
+                  "aaData" : aaData,
+             }
+ 
+    json_data = jsonify(output)
+
+    return HttpResponse(json_data, mimetype="application/json")
+
+def convert_seconds(time):
+    """ Convert Seconds """
+    unit = 'ms'
+
+    if time > 1000:
+        time = time / 1000
+        unit = 's'
+        if time > 60:
+            time = time / 60
+            unit = 'min'
+            if time > 60:
+                time = time / 60
+                unit = 'hrs'
+
+    return "%i %s"  % (time, unit)
+
+def convert_bytes(size):
+    """ Convert bytes """
+    unit = 'B'
+
+    if size > 1024:
+        size = size / 1024
+        unit = 'kB'
+        if size > 1024:
+            size = size / 1024
+            unit = 'MB'
+            if size > 1024:
+                size = size / 1024
+                unit = 'GB'
+                if size > 1024:
+                    size = size / 1024
+                    unit = 'TB'
+                    if size > 1024:
+                        size = size / 1024
+                        unit = 'PB'
+                        if size > 1024:
+                            size = size / 1024
+                            unit = 'EB'
+
+    return "%i %s" % (size, unit)
+
+def create_scatterplot(request, xfield, xtype, yfield, ytype):
+    """ Returns a scatterplot of jobs """
+    NUM_CLUSTERS = 3
+    colors = ['#4EACC5', '#FF9C34', '#90EE90']
+    jobs = Job.objects.all().values_list(xfield, yfield)
+    jobs_arr = NP.array(jobs)   
+
+    km = MiniBatchKMeans(init='k-means++', k=NUM_CLUSTERS, n_init=10, batch_size=45, max_no_improvement=10)
     
-    json_data = json_data.replace(u"\"numRows\": 20", u"\"numRows\": %i" % (num_jobs) )
+
+    log_jobs_arr = NP.log10(jobs_arr)
+    low_vals = log_jobs_arr < 0
+    log_jobs_arr[low_vals] = 0
+    km.fit(log_jobs_arr)
+
+    centers = km.cluster_centers_
+    labels = km.labels_
+
+    fig = PLT.figure()
+    ax = fig.add_subplot(1,1,1)
+
+    for k, col in zip(range(NUM_CLUSTERS), colors):
+        members = labels == k
+        center = centers[k]
+        ax.plot(jobs_arr[members, 0], jobs_arr[members, 1], 'w', markerfacecolor=col, marker='.', markeredgecolor=col)
+        ax.plot(math.pow(10, center[0]), math.pow(10, center[1]), 'o', markerfacecolor=col, markeredgecolor='k', markersize=10)
+
+    ax.set_title('KMeans of %s vs. %s' % (yfield, xfield))
+    ax.set_xlabel('%s' % (xfield))
+    ax.set_ylabel('%s' % (yfield))
+
+    if ytype == 'log':
+        ax.set_yscale('log')
+        ax.set_ylabel('Log of %s' % (yfield))
+    if xtype == 'log':
+        ax.set_xscale('log')
+        ax.set_xlabel('Log of %s' % (xfield))
+
+    f = PLT.gcf()
+    
+
+    return figure_to_response(f)
+          
+def host_autocomplete(request):
+    """ Returns the list of hosts in a JSON format """
+    if request.GET["term"]:
+        hosts = Node.objects.filter(name__contains=request.GET["term"]).values_list('name', flat=True).order_by('name')[:10]
+    
+    return HttpResponse(jsonify(hosts), mimetype="application/json")
+ 
+def id_autocomplete(request):
+    """ Returns the list of id in a JSON format """
+    if request.GET["term"]:
+        hosts = Job.objects.filter(acct_id__contains=request.GET["term"]).values_list('acct_id', flat=True).order_by('acct_id')[:5]
+
+    return HttpResponse(jsonify(hosts), mimetype="application/json")
+ 
+def job_JSON_view(request, host, id):
+    """ Forms a JSON object from a job id """
+    t0 = time.clock()
+    print "Started method"
+
+    job_shelf = shelve.open(SHELVE_DIR)
+
+    t1 = time.clock() - t0
+    print "Shelve opened at %f" % (t1)
+
+    job = job_shelf[id]
+
+    t2 = time.clock() - t0
+    print "Job loaded at %f" % (t2)
+
+    hosts = {}
+    for name in job.hosts.keys():
+        data = {}
+        data['name'] = name
+       
+        stats = {}
+        fields = job.hosts[name].stats
+        for field in fields:
+            stats_inside = {}
+            for i in fields[field]:
+                stats_inside[i] = fields[field][i].tolist()
+            
+            stats[field] = stats_inside
+ 
+        cpu_data = {}
+        cpu_elements = job.hosts[name].interpret_amd64_pmc_cpu()
+        for ele in cpu_elements:
+            ele_data = {}
+            for l in cpu_elements[ele]:
+                ele_data[l] = cpu_elements[ele][l].tolist()
+            
+            cpu_data[ele] = ele_data
+     
+        data['interpret_amd64_pmc_cpu'] = cpu_data
+        data['stats'] = stats
+
+        hosts[name] = data
+
+    t3 = time.clock() - t0
+    print "Iterated at %f" % (t3)
+
+    json_data = jsonify({'acct' : job.acct,
+                         'end_time' : job.end_time,
+                         'id' : job.id,
+                         'start_time' : job.start_time,
+                         'times' : job.times.tolist(),
+                         'hosts' : hosts
+                        })
+    t4 = time.clock() - t0
+    print "Jsonified at %f" % (t4)
 
     return HttpResponse(json_data, mimetype="application/json")
 
